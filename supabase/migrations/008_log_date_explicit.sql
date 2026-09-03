@@ -1,0 +1,11 @@
+-- weight_logs.log_date was `generated always as ((logged_at at time zone
+-- 'utc')::date) stored` — this silently disagrees with the user's actual
+-- local calendar day for timezones offset more than ~12h from UTC (e.g. NZ
+-- during DST, +13): local noon on date D converts to UTC 23:00 on D-1, so
+-- the generated column would bucket the entry under the wrong day.
+--
+-- The app now decides the local day explicitly (via Temporal) and supplies
+-- log_date directly on every write, decoupled from whatever UTC instant
+-- logged_at happens to be. Convert the generated column to a normal one,
+-- keeping existing data as-is.
+alter table weight_logs alter column log_date drop expression;

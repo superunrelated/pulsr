@@ -1,25 +1,27 @@
+import { Temporal } from '@js-temporal/polyfill';
 import type { ChangeEvent } from 'react';
 
 export interface DateOption {
   label: string;
-  date: string; // YYYY-MM-DD
+  date: string; // YYYY-MM-DD, local calendar date
 }
 
-/** Today, Yesterday, and the 6 days before that — for quick "log this in the past" pickers. */
+/** Today, Yesterday, and the 6 days before that — for quick "log this in the
+ * past" pickers. Uses the device's local calendar day (via Temporal), not
+ * UTC — `new Date().toISOString()` returns the wrong date for a large part
+ * of the day in timezones ahead of UTC (e.g. NZ). */
 export function getRecentDateOptions(): DateOption[] {
+  const today = Temporal.Now.plainDateISO();
   const options: DateOption[] = [];
-  const today = new Date();
   for (let i = 0; i <= 7; i++) {
-    const d = new Date(today);
-    d.setDate(d.getDate() - i);
-    const date = d.toISOString().slice(0, 10);
+    const d = today.subtract({ days: i });
     const label =
       i === 0
         ? 'Today'
         : i === 1
           ? 'Yesterday'
-          : d.toLocaleDateString(undefined, { weekday: 'short' });
-    options.push({ label, date });
+          : d.toLocaleString(undefined, { weekday: 'short' });
+    options.push({ label, date: d.toString() });
   }
   return options;
 }

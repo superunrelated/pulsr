@@ -8,14 +8,12 @@ import type {
 } from '@pulsr/shared';
 import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
+import { localDayUtcRange, localTodayIso } from '../../lib/dates';
 
 function todayRange() {
-  const today = new Date().toISOString().slice(0, 10);
-  return {
-    today,
-    dayStart: `${today}T00:00:00.000Z`,
-    dayEnd: `${today}T23:59:59.999Z`,
-  };
+  const today = localTodayIso();
+  const { startIso, endIso } = localDayUtcRange(today);
+  return { today, dayStart: startIso, dayEnd: endIso };
 }
 
 export function Dashboard() {
@@ -33,7 +31,7 @@ export function Dashboard() {
       .from('water_logs')
       .select('*')
       .gte('logged_at', dayStart)
-      .lte('logged_at', dayEnd);
+      .lt('logged_at', dayEnd);
     setTodaysWater(data ?? []);
   }
 
@@ -45,7 +43,7 @@ export function Dashboard() {
         .from('medication_logs')
         .select('*')
         .gte('scheduled_for', dayStart)
-        .lte('scheduled_for', dayEnd),
+        .lt('scheduled_for', dayEnd),
     ]);
     setMedications(medsRes.data ?? []);
     setTodaysMeds(logsRes.data ?? []);
@@ -111,6 +109,7 @@ export function Dashboard() {
           user_id: userData.user.id,
           weight_kg: value,
           logged_at: new Date().toISOString(),
+          log_date: localTodayIso(),
         },
         { onConflict: 'user_id,log_date' },
       )
@@ -216,6 +215,12 @@ export function Dashboard() {
             </p>
           </div>
           <div className="flex flex-wrap justify-end gap-2">
+            <button
+              onClick={() => logWater(200)}
+              className="rounded bg-neutral-100 px-3 py-1 text-xs font-medium text-neutral-700"
+            >
+              1 glass
+            </button>
             <button
               onClick={() => logWater(250)}
               className="rounded bg-neutral-100 px-3 py-1 text-xs font-medium text-neutral-700"

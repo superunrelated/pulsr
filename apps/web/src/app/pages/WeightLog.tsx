@@ -1,13 +1,16 @@
 import { Card, DatePicker, getRecentDateOptions } from '@pulsr/ui';
 import type { WeightLog as WeightLogEntry } from '@pulsr/shared';
-import { RiCloseLine } from '@remixicon/react';
+import { RiCloseLine, RiPencilLine, RiCheckLine } from '@remixicon/react';
 import { useEffect, useState, type FormEvent } from 'react';
 import { supabase } from '../../lib/supabase';
+import { localNoonUtcIso } from '../../lib/dates';
 
 export function WeightLog() {
   const [entries, setEntries] = useState<WeightLogEntry[]>([]);
   const [weight, setWeight] = useState('');
   const [date, setDate] = useState(getRecentDateOptions()[0].date);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editWeight, setEditWeight] = useState('');
 
   async function refresh() {
     const { data } = await supabase
@@ -28,12 +31,15 @@ export function WeightLog() {
     if (!userData.user || !weight) return;
 
     // Upsert on the unique (user_id, log_date) index — only one entry per
-    // calendar day, whichever date is picked.
+    // calendar day, whichever date is picked. log_date is the local
+    // calendar date the user picked, independent of whatever UTC instant
+    // logged_at ends up being.
     await supabase.from('weight_logs').upsert(
       {
         user_id: userData.user.id,
         weight_kg: Number(weight),
-        logged_at: `${date}T12:00:00.000Z`,
+        logged_at: localNoonUtcIso(date),
+        log_date: date,
       },
       { onConflict: 'user_id,log_date' },
     );
@@ -44,6 +50,21 @@ export function WeightLog() {
 
   async function removeEntry(id: string) {
     await supabase.from('weight_logs').delete().eq('id', id);
+    refresh();
+  }
+
+  function startEdit(entry: WeightLogEntry) {
+    setEditingId(entry.id);
+    setEditWeight(String(entry.weight_kg));
+  }
+
+  async function saveEdit(id: string) {
+    if (!editWeight) return;
+    await supabase
+      .from('weight_logs')
+      .update({ weight_kg: Number(editWeight) })
+      .eq('id', id);
+    setEditingId(null);
     refresh();
   }
 
@@ -82,18 +103,44 @@ export function WeightLog() {
               <span className="text-neutral-600">
                 {new Date(entry.logged_at).toLocaleDateString()}
               </span>
-              <div className="flex items-center gap-3">
-                <span className="font-medium text-neutral-900">
-                  {Number(entry.weight_kg).toFixed(1)} kg
-                </span>
-                <button
-                  onClick={() => removeEntry(entry.id)}
-                  aria-label="Remove entry"
-                  className="text-neutral-400 hover:text-red-500"
-                >
-                  <RiCloseLine size={16} />
-                </button>
-              </div>
+              {editingId === entry.id ? (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={editWeight}
+                    onChange={(e) => setEditWeight(e.target.value)}
+                    className="w-20 rounded border border-neutral-300 px-2 py-1 text-sm"
+                  />
+                  <button
+                    onClick={() => saveEdit(entry.id)}
+                    aria-label="Save"
+                    className="text-neutral-400 hover:text-emerald-600"
+                  >
+                    <RiCheckLine size={16} />
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-3">
+                  <span className="font-medium text-neutral-900">
+                    {Number(entry.weight_kg).toFixed(1)} kg
+                  </span>
+                  <button
+                    onClick={() => startEdit(entry)}
+                    aria-label="Edit entry"
+                    className="text-neutral-400 hover:text-neutral-700"
+                  >
+                    <RiPencilLine size={16} />
+                  </button>
+                  <button
+                    onClick={() => removeEntry(entry.id)}
+                    aria-label="Remove entry"
+                    className="text-neutral-400 hover:text-red-500"
+                  >
+                    <RiCloseLine size={16} />
+                  </button>
+                </div>
+              )}
             </li>
           ))}
           {entries.length === 0 && (
