@@ -19,6 +19,7 @@ app.whenReady().then(async () => {
   const icon = nativeImage.createFromPath(
     path.join(__dirname, '../src/assets/tray-icon.png'),
   );
+  icon.setTemplateImage(true); // let macOS auto-invert for light/dark menu bar
   tray = new Tray(icon);
   tray.setToolTip('Pulsr');
 

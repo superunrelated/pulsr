@@ -1,4 +1,13 @@
 import { createClient } from '@supabase/supabase-js';
+import WebSocket from 'ws';
+
+// Electron's bundled Node runtime doesn't expose a native WebSocket global,
+// which @supabase/supabase-js's realtime client requires at construction
+// time (even though this app never uses realtime subscriptions).
+if (typeof globalThis.WebSocket === 'undefined') {
+  (globalThis as unknown as { WebSocket: typeof WebSocket }).WebSocket =
+    WebSocket;
+}
 
 const url = process.env.PULSR_SUPABASE_URL;
 const anonKey = process.env.PULSR_SUPABASE_ANON_KEY;
