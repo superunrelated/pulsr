@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "pulsr": {
+      "command": "node",
+      "args": ["./mcp-server/dist/index.js"],
+      "env": {
+        "SUPABASE_URL": "https://wjgyqqqvimymwxdpnabk.supabase.co",
+        "SUPABASE_SERVICE_ROLE_KEY": "REPLACE_ME"
+      }
+    }
+  }
+}

@@ -4,34 +4,19 @@
   "files": [],
   "references": [
     {
-      "path": "./apps/api"
+      "path": "./apps/web"
     },
     {
-      "path": "./apps/shop-e2e"
+      "path": "./libs/ui"
     },
     {
-      "path": "./apps/shop"
+      "path": "./libs/shared"
     },
     {
-      "path": "./packages/api/products"
+      "path": "./mcp-server"
     },
     {
-      "path": "./packages/shared/models"
-    },
-    {
-      "path": "./packages/shop/data"
-    },
-    {
-      "path": "./packages/shop/feature-product-detail"
-    },
-    {
-      "path": "./packages/shop/feature-products"
-    },
-    {
-      "path": "./packages/shop/shared-ui"
-    },
-    {
-      "path": "./packages/shared/test-utils"
+      "path": "./apps/tray"
     }
   ]
 }

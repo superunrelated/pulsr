@@ -1,261 +1,60 @@
-# Nx React Repository
+# Pulsr
 
-<a alt="Nx logo" href="https://nx.dev" target="_blank" rel="noreferrer"><img src="https://raw.githubusercontent.com/nrwl/nx/master/images/nx-logo.png" width="45"></a>
+A personal health and lifestyle tracker: weight, medications, symptoms, and
+wearable activity data (Pixel Watch via Google Fit), with an MCP server so
+Claude can be asked to reason about the data — Pulsr itself never calls an
+LLM.
 
-✨ A repository showcasing key [Nx](https://nx.dev) features for React monorepos ✨
+## Structure
 
-🚀 If you haven't connected to Nx Cloud yet, [complete your setup here](https://cloud.nx.app/get-started). Get faster builds with remote caching, distributed task execution, and self-healing CI. [See how your workspace can benefit](#nx-cloud).
+- `apps/web` — React 19 + Vite + Tailwind PWA (the primary interface, used on
+  Android and in the browser)
+- `apps/tray` — Electron menu-bar app for macOS: fires reminders (water,
+  standing desk, walking pad, pills, a weekly "review with Claude" nudge) and
+  offers quick-log actions
+- `libs/ui`, `libs/shared` — shared React components and Supabase
+  client/types used by both apps
+- `mcp-server` — standalone MCP server exposing Pulsr's data as read-only
+  tools for any MCP client (Claude Desktop, Claude Code)
+- `supabase/` — Postgres migrations (schema + RLS) and the `google-fit-sync`
+  Edge Function (OAuth callback + scheduled sync)
 
-## 📦 Project Overview
+## Prerequisites
 
-This repository demonstrates a production-ready React monorepo with:
+See `docs/PREREQUISITES.md` (or the original planning doc) for the one-time
+manual setup: a Supabase project, a Google Cloud OAuth app for Google Fit,
+and a GitHub repo. You'll need these values before running anything:
 
-- **2 Applications**
+- Supabase project URL, anon key, service-role key
+- Google OAuth Client ID/Secret + redirect URI
 
-  - `shop` - React e-commerce application with product listings and detail views
-  - `api` - Backend API serving product data
-
-- **7 Libraries**
-
-  - `@org/shop-feature-products` - Product listing feature (React)
-  - `@org/shop-feature-product-detail` - Product detail feature (React)
-  - `@org/shop-data` - Data access layer for shop features
-  - `@org/shop-shared-ui` - Shared UI components
-  - `@org/models` - Shared data models
-  - `@org/api-products` - API product service library
-  - `@org/shared-test-utils` - Shared testing utilities
-
-- **E2E Testing**
-  - `shop-e2e` - Playwright tests for the shop application
-
-## 🚀 Quick Start
+## Local development
 
 ```bash
-# Clone the repository
-git clone <your-fork-url>
-cd <your-repository-name>
-
-# Install dependencies
 npm install
 
-# Serve the React shop application (this will simultaneously serve the API backend)
-npx nx run @org/shop:serve
+# Web app
+cp apps/web/.env.example apps/web/.env
+npm run dev            # nx serve web, http://localhost:4200
 
-# ...or you can serve the API separately
-npx nx run @org/api:serve
+# Supabase (once the CLI is installed and linked)
+supabase db push       # applies supabase/migrations
+supabase functions deploy google-fit-sync
+supabase secrets set GOOGLE_CLIENT_ID=... GOOGLE_CLIENT_SECRET=... GOOGLE_REDIRECT_URI=...
 
-# Build all projects
-npx nx run-many -t build
+# MCP server (used by Claude Desktop/Code, not by the web app)
+cd mcp-server && npm install
+SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... npm run build
+# then point your MCP client at: node mcp-server/dist/index.js
 
-# Run tests
-npx nx run-many -t test
-
-# Lint all projects
-npx nx run-many -t lint
-
-# Run e2e tests
-npx nx run @org/shop-e2e:e2e
-
-# Run tasks in parallel
-
-npx nx run-many -t lint test build e2e --parallel=3
-
-# Visualize the project graph
-npx nx graph
+# Mac tray app
+cd apps/tray && npm install
+PULSR_SUPABASE_URL=... PULSR_SUPABASE_ANON_KEY=... PULSR_EMAIL=... PULSR_PASSWORD=... npm start
 ```
 
-## ⭐ Featured Nx Capabilities
+## Commands
 
-This repository showcases several powerful Nx features:
-
-### 1. 🔒 Module Boundaries
-
-Enforces architectural constraints using tags. Each project has specific dependencies it can use:
-
-- `scope:shared` - Can be used by all projects
-- `scope:shop` - Shop-specific libraries
-- `scope:api` - API-specific libraries
-- `type:feature` - Feature libraries
-- `type:data` - Data access libraries
-- `type:ui` - UI component libraries
-
-**Try it out:**
-
-```bash
-# See the current project graph and boundaries
-npx nx graph
-
-# View a specific project's details
-npx nx show project @org/shop --web
-```
-
-[Learn more about module boundaries →](https://nx.dev/docs/features/enforce-module-boundaries)
-
-### 2. 🎭 Playwright E2E Testing
-
-End-to-end testing with Playwright is pre-configured:
-
-```bash
-# Run e2e tests
-npx nx run @org/shop-e2e:e2e
-
-# Run e2e tests in CI mode
-npx nx run @org/shop-e2e:e2e-ci
-```
-
-[Learn more about E2E testing →](https://nx.dev/docs/technologies/test-tools/playwright)
-
-### 3. ⚡ Vitest for Unit Testing
-
-Fast unit testing with Vitest for React libraries:
-
-```bash
-# Test a specific library
-npx nx run @org/shop-data:test
-
-# Test all projects
-npx nx run-many -t test
-```
-
-[Learn more about Vite testing →](https://nx.dev/docs/technologies/build-tools/vite)
-
-### 4. 🔧 Self-Healing CI
-
-The CI pipeline includes `nx fix-ci` which automatically identifies and suggests fixes for common issues:
-
-```bash
-# In CI, this command provides automated fixes
-npx nx fix-ci
-```
-
-This feature helps maintain a healthy CI pipeline by automatically detecting and suggesting solutions for:
-
-- Missing dependencies
-- Incorrect task configurations
-- Cache invalidation issues
-- Common build failures
-
-[Learn more about self-healing CI →](https://nx.dev/docs/features/ci-features/self-healing-ci)
-
-## 📁 Project Structure
-
-```
-├── apps/
-│   ├── shop/           [scope:shop]    - React e-commerce app
-│   ├── shop-e2e/                       - E2E tests for shop
-│   └── api/            [scope:api]     - Backend API
-├── packages/
-│   ├── shop/
-│   │   ├── feature-products/        [scope:shop,type:feature] - Product listing
-│   │   ├── feature-product-detail/  [scope:shop,type:feature] - Product details
-│   │   ├── data/                    [scope:shop,type:data]    - Data access
-│   │   └── shared-ui/               [scope:shop,type:ui]      - UI components
-│   ├── api/
-│   │   └── products/    [scope:api]    - Product service
-│   └── shared/
-│       ├── models/      [scope:shared,type:data] - Shared models
-│       └── test-utils/  [scope:shared]           - Testing utilities
-├── nx.json             - Nx configuration
-├── tsconfig.json       - TypeScript configuration
-└── eslint.config.mjs   - ESLint with module boundary rules
-```
-
-## 🏷️ Understanding Tags
-
-This repository uses tags to enforce module boundaries:
-
-| Project                 | Tags                         | Can Import From              |
-| ----------------------- | ---------------------------- | ---------------------------- |
-| `shop`                  | `scope:shop`                 | `scope:shop`, `scope:shared` |
-| `api`                   | `scope:api`                  | `scope:api`, `scope:shared`  |
-| `shop-feature-products` | `scope:shop`, `type:feature` | `scope:shop`, `scope:shared` |
-| `shop-data`             | `scope:shop`, `type:data`    | `scope:shared`               |
-| `models`                | `scope:shared`, `type:data`  | Nothing (base library)       |
-
-## 📚 Useful Commands
-
-```bash
-# Project exploration
-npx nx graph                                    # Interactive dependency graph
-npx nx list                                     # List installed plugins
-npx nx show project @org/shop --web                 # View project details
-
-# Development
-npx nx run @org/shop:serve                              # Serve React app
-npx nx run @org/api:serve                               # Serve backend API
-npx nx run @org/shop:build                              # Build React app
-npx nx run @org/shop-data:test                          # Test a specific library
-npx nx run @org/shop-feature-products:lint              # Lint a specific library
-
-# Running multiple tasks
-npx nx run-many -t build                       # Build all projects
-npx nx run-many -t test --parallel=3          # Test in parallel
-npx nx run-many -t lint test build            # Run multiple targets
-
-# Affected commands (great for CI)
-npx nx affected -t build                       # Build only affected projects
-npx nx affected -t test                        # Test only affected projects
-```
-
-## 🎯 Adding New Features
-
-### Generate a new React application:
-
-```bash
-npx nx g @nx/react:app my-app
-```
-
-### Generate a new React library:
-
-```bash
-npx nx g @nx/react:lib my-lib
-```
-
-### Generate a new React component:
-
-```bash
-npx nx g @nx/react:component my-component --project=my-lib
-```
-
-### Generate a new API library:
-
-```bash
-npx nx g @nx/node:lib my-api-lib
-```
-
-You can use `npx nx list` to see all available plugins and `npx nx list <plugin-name>` to see all generators for a specific plugin.
-
-## Nx Cloud
-
-Nx Cloud ensures a [fast and scalable CI](https://nx.dev/nx-cloud?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) pipeline. It includes features such as:
-
-- [Remote caching](https://nx.dev/docs/features/ci-features/remote-cache?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Task distribution across multiple machines](https://nx.dev/docs/features/ci-features/distribute-task-execution?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Automated e2e test splitting](https://nx.dev/docs/features/ci-features/split-e2e-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Task flakiness detection and rerunning](https://nx.dev/docs/features/ci-features/flaky-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-
-## Install Nx Console
-
-Nx Console is an editor extension that enriches your developer experience. It lets you run tasks, generate code, and improves code autocompletion in your IDE. It is available for VSCode and IntelliJ.
-
-[Install Nx Console &raquo;](https://nx.dev/docs/getting-started/editor-setup?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-
-## 🔗 Learn More
-
-- [Nx Documentation](https://nx.dev/docs)
-- [Crafting Your Workspace Tutorial](https://nx.dev/docs/getting-started/tutorials/crafting-your-workspace)
-- [Module Boundaries](https://nx.dev/docs/features/enforce-module-boundaries)
-- [Playwright Testing](https://nx.dev/docs/technologies/test-tools/playwright)
-- [Vite](https://nx.dev/docs/technologies/build-tools/vite)
-- [Docker Integration](https://nx.dev/docs/guides/nx-release/release-docker-images)
-- [Nx Cloud](https://nx.dev/nx-cloud)
-
-## 💬 Community
-
-Join the Nx community:
-
-- [Discord](https://go.nx.dev/community)
-- [X (Twitter)](https://twitter.com/nxdevtools)
-- [LinkedIn](https://www.linkedin.com/company/nrwl)
-- [YouTube](https://www.youtube.com/@nxdevtools)
-- [Blog](https://nx.dev/blog)
+- `npm run dev` / `npm run build` — web app
+- `npm run lint` / `npm test` / `npm run typecheck` — all Nx projects
+- `npm run mcp-server:build` / `npm run mcp-server:dev`
+- `npm run tray:start`
