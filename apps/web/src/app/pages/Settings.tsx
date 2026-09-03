@@ -18,6 +18,7 @@ const REMINDER_LABELS: Record<ReminderType, string> = {
 export function Settings() {
   const [connection, setConnection] = useState<WearableConnection | null>(null);
   const [reminders, setReminders] = useState<ReminderSetting[]>([]);
+  const [syncing, setSyncing] = useState(false);
 
   async function refresh() {
     const [connRes, remindersRes] = await Promise.all([
@@ -56,6 +57,30 @@ export function Settings() {
     window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
   }
 
+  async function disconnectGoogleFit() {
+    await supabase
+      .from('wearable_connections')
+      .delete()
+      .eq('provider', 'google_fit');
+    refresh();
+  }
+
+  async function syncGoogleFit() {
+    setSyncing(true);
+    try {
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/google-fit-sync/sync`;
+      const { data: userData } = await supabase.auth.getUser();
+      await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: userData.user?.id }),
+      });
+    } finally {
+      setSyncing(false);
+      refresh();
+    }
+  }
+
   async function toggleReminder(type: ReminderType, enabled: boolean) {
     const { data: userData } = await supabase.auth.getUser();
     if (!userData.user) return;
@@ -72,13 +97,30 @@ export function Settings() {
     <div className="space-y-4 p-4">
       <Card title="Wearable">
         {connection ? (
-          <p className="text-sm text-slate-600">
-            Connected to Google Fit. Last synced:{' '}
-            {connection.last_synced_at
-              ? new Date(connection.last_synced_at).toLocaleString()
-              : 'never yet'}
-            .
-          </p>
+          <div className="space-y-3">
+            <p className="text-sm text-slate-600">
+              Connected to Google Fit. Last synced:{' '}
+              {connection.last_synced_at
+                ? new Date(connection.last_synced_at).toLocaleString()
+                : 'never yet'}
+              .
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={syncGoogleFit}
+                disabled={syncing}
+                className="flex-1 rounded-md bg-slate-900 px-4 py-2 text-sm text-white disabled:opacity-50"
+              >
+                {syncing ? 'Syncing…' : 'Sync now'}
+              </button>
+              <button
+                onClick={disconnectGoogleFit}
+                className="flex-1 rounded-md bg-slate-100 px-4 py-2 text-sm font-medium text-slate-700"
+              >
+                Disconnect
+              </button>
+            </div>
+          </div>
         ) : (
           <button
             onClick={connectGoogleFit}
