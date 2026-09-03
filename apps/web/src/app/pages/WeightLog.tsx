@@ -62,7 +62,7 @@ export function WeightLog() {
                 {new Date(entry.logged_at).toLocaleDateString()}
               </span>
               <span className="font-medium text-neutral-900">
-                {entry.weight_kg.toFixed(1)} kg
+                {Number(entry.weight_kg).toFixed(1)} kg
               </span>
             </li>
           ))}

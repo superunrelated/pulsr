@@ -70,7 +70,7 @@ export function Dashboard() {
       .maybeSingle()
       .then(({ data }) => {
         setLatestWeight(data);
-        if (data) setPendingWeight(data.weight_kg);
+        if (data) setPendingWeight(Number(data.weight_kg));
       });
     refreshMeds();
     refreshWater();
