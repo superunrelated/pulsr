@@ -7,7 +7,11 @@ module.exports = {
     ...createGlobPatternsForDependencies(__dirname),
   ],
   theme: {
-    extend: {},
+    extend: {
+      fontFamily: {
+        serif: ["'Georgia'", "'Times New Roman'", 'serif'],
+      },
+    },
   },
   plugins: [],
 };

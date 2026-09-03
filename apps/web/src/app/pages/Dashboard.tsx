@@ -1,18 +1,57 @@
 import { StatCard, Card } from '@pulsr/ui';
-import type { DailyActivity, MedicationLog, WeightLog } from '@pulsr/shared';
+import type {
+  DailyActivity,
+  Medication,
+  MedicationLog,
+  WaterLog,
+  WeightLog,
+} from '@pulsr/shared';
 import { useEffect, useState } from 'react';
 import { supabase } from '../../lib/supabase';
+
+function todayRange() {
+  const today = new Date().toISOString().slice(0, 10);
+  return {
+    today,
+    dayStart: `${today}T00:00:00.000Z`,
+    dayEnd: `${today}T23:59:59.999Z`,
+  };
+}
 
 export function Dashboard() {
   const [activity, setActivity] = useState<DailyActivity | null>(null);
   const [latestWeight, setLatestWeight] = useState<WeightLog | null>(null);
+  const [medications, setMedications] = useState<Medication[]>([]);
   const [todaysMeds, setTodaysMeds] = useState<MedicationLog[]>([]);
+  const [todaysWater, setTodaysWater] = useState<WaterLog[]>([]);
   const [showCheckinBanner, setShowCheckinBanner] = useState(false);
 
+  async function refreshWater() {
+    const { dayStart, dayEnd } = todayRange();
+    const { data } = await supabase
+      .from('water_logs')
+      .select('*')
+      .gte('logged_at', dayStart)
+      .lte('logged_at', dayEnd);
+    setTodaysWater(data ?? []);
+  }
+
+  async function refreshMeds() {
+    const { dayStart, dayEnd } = todayRange();
+    const [medsRes, logsRes] = await Promise.all([
+      supabase.from('medications').select('*').eq('active', true),
+      supabase
+        .from('medication_logs')
+        .select('*')
+        .gte('scheduled_for', dayStart)
+        .lte('scheduled_for', dayEnd),
+    ]);
+    setMedications(medsRes.data ?? []);
+    setTodaysMeds(logsRes.data ?? []);
+  }
+
   useEffect(() => {
-    const today = new Date().toISOString().slice(0, 10);
-    const dayStart = `${today}T00:00:00.000Z`;
-    const dayEnd = `${today}T23:59:59.999Z`;
+    const { today } = todayRange();
 
     supabase
       .from('daily_activity')
@@ -29,12 +68,8 @@ export function Dashboard() {
       .limit(1)
       .maybeSingle()
       .then(({ data }) => setLatestWeight(data));
-    supabase
-      .from('medication_logs')
-      .select('*')
-      .gte('scheduled_for', dayStart)
-      .lte('scheduled_for', dayEnd)
-      .then(({ data }) => setTodaysMeds(data ?? []));
+    refreshMeds();
+    refreshWater();
     supabase
       .from('reminder_settings')
       .select('*')
@@ -44,12 +79,36 @@ export function Dashboard() {
       .then(({ data }) => setShowCheckinBanner(Boolean(data)));
   }, []);
 
+  async function logTaken(medication: Medication) {
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData.user) return;
+    const now = new Date().toISOString();
+    await supabase.from('medication_logs').insert({
+      user_id: userData.user.id,
+      medication_id: medication.id,
+      scheduled_for: now,
+      taken_at: now,
+      status: 'taken',
+    });
+    refreshMeds();
+  }
+
+  async function logWater(amountMl: number) {
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData.user) return;
+    await supabase
+      .from('water_logs')
+      .insert({ user_id: userData.user.id, amount_ml: amountMl });
+    refreshWater();
+  }
+
   const takenCount = todaysMeds.filter((m) => m.status === 'taken').length;
+  const totalWaterMl = todaysWater.reduce((sum, log) => sum + log.amount_ml, 0);
 
   return (
     <div className="space-y-4 p-4">
       {showCheckinBanner && (
-        <div className="rounded-xl bg-slate-900 p-4 text-sm text-white">
+        <div className="rounded bg-[#1c1e2a] p-4 text-sm text-white">
           🔎 Time to review your data with Claude — open Claude Desktop/Code and
           query the Pulsr MCP server for a weekly check-in.
         </div>
@@ -73,16 +132,73 @@ export function Dashboard() {
           label="Active minutes"
           value={activity?.active_minutes?.toString() ?? '—'}
         />
-        <StatCard
-          label="Meds today"
-          value={
-            todaysMeds.length > 0 ? `${takenCount}/${todaysMeds.length}` : '—'
-          }
-        />
       </div>
 
+      <Card>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-[11px] font-medium uppercase tracking-wide text-neutral-400">
+              Water today
+            </p>
+            <p className="mt-1 font-serif text-2xl font-semibold text-[#1c1e2a]">
+              {totalWaterMl > 0 ? `${totalWaterMl} ml` : '—'}
+            </p>
+          </div>
+          <div className="flex flex-wrap justify-end gap-2">
+            <button
+              onClick={() => logWater(250)}
+              className="rounded bg-neutral-100 px-3 py-1 text-xs font-medium text-neutral-700"
+            >
+              +250ml
+            </button>
+            <button
+              onClick={() => logWater(500)}
+              className="rounded bg-neutral-100 px-3 py-1 text-xs font-medium text-neutral-700"
+            >
+              +500ml
+            </button>
+          </div>
+        </div>
+      </Card>
+
+      {medications.length > 0 && (
+        <Card>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[11px] font-medium uppercase tracking-wide text-neutral-400">
+                Meds today
+              </p>
+              <p className="mt-1 font-serif text-2xl font-semibold text-[#1c1e2a]">
+                {takenCount}/{medications.length}
+              </p>
+            </div>
+            <div className="flex flex-wrap justify-end gap-2">
+              {medications.map((med) => {
+                const takenToday = todaysMeds.some(
+                  (log) =>
+                    log.medication_id === med.id && log.status === 'taken',
+                );
+                return (
+                  <button
+                    key={med.id}
+                    onClick={() => logTaken(med)}
+                    className={`rounded-full px-3 py-1 text-xs font-medium ${
+                      takenToday
+                        ? 'bg-emerald-50 text-emerald-600'
+                        : 'bg-neutral-100 text-neutral-700'
+                    }`}
+                  >
+                    {med.name} {takenToday ? '✓' : ''}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </Card>
+      )}
+
       <Card title="Nothing connected yet?">
-        <p className="text-sm text-slate-600">
+        <p className="text-sm text-neutral-600">
           Head to Settings to connect your Pixel Watch (Google Fit) and
           configure reminders.
         </p>

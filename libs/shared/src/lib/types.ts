@@ -49,6 +49,13 @@ export interface WeightLog {
   weight_kg: number;
 }
 
+export interface WaterLog {
+  id: string;
+  user_id: string;
+  logged_at: string;
+  amount_ml: number;
+}
+
 export interface Medication {
   id: string;
   user_id: string;

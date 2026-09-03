@@ -98,7 +98,7 @@ export function Settings() {
       <Card title="Wearable">
         {connection ? (
           <div className="space-y-3">
-            <p className="text-sm text-slate-600">
+            <p className="text-sm text-neutral-600">
               Connected to Google Fit. Last synced:{' '}
               {connection.last_synced_at
                 ? new Date(connection.last_synced_at).toLocaleString()
@@ -109,13 +109,13 @@ export function Settings() {
               <button
                 onClick={syncGoogleFit}
                 disabled={syncing}
-                className="flex-1 rounded-md bg-slate-900 px-4 py-2 text-sm text-white disabled:opacity-50"
+                className="flex-1 rounded bg-[#1c1e2a] px-4 py-2 text-sm text-white disabled:opacity-50"
               >
                 {syncing ? 'Syncing…' : 'Sync now'}
               </button>
               <button
                 onClick={disconnectGoogleFit}
-                className="flex-1 rounded-md bg-slate-100 px-4 py-2 text-sm font-medium text-slate-700"
+                className="flex-1 rounded bg-neutral-100 px-4 py-2 text-sm font-medium text-neutral-700"
               >
                 Disconnect
               </button>
@@ -124,7 +124,7 @@ export function Settings() {
         ) : (
           <button
             onClick={connectGoogleFit}
-            className="w-full rounded-md bg-slate-900 px-4 py-2 text-sm text-white"
+            className="w-full rounded bg-[#1c1e2a] px-4 py-2 text-sm text-white"
           >
             Connect Pixel Watch (Google Fit)
           </button>
@@ -132,7 +132,7 @@ export function Settings() {
       </Card>
 
       <Card title="Reminders">
-        <ul className="divide-y divide-slate-100">
+        <ul className="divide-y divide-neutral-100">
           {(Object.keys(REMINDER_LABELS) as ReminderType[]).map((type) => {
             const existing = reminders.find((r) => r.reminder_type === type);
             const enabled = existing?.enabled ?? false;
@@ -141,13 +141,15 @@ export function Settings() {
                 key={type}
                 className="flex items-center justify-between py-2 text-sm"
               >
-                <span className="text-slate-900">{REMINDER_LABELS[type]}</span>
+                <span className="text-neutral-900">
+                  {REMINDER_LABELS[type]}
+                </span>
                 <button
                   onClick={() => toggleReminder(type, !enabled)}
                   className={`rounded-full px-3 py-1 text-xs font-medium ${
                     enabled
-                      ? 'bg-slate-900 text-white'
-                      : 'bg-slate-100 text-slate-500'
+                      ? 'bg-[#1c1e2a] text-white'
+                      : 'bg-neutral-100 text-neutral-500'
                   }`}
                 >
                   {enabled ? 'On' : 'Off'}
@@ -156,7 +158,7 @@ export function Settings() {
             );
           })}
         </ul>
-        <p className="mt-3 text-xs text-slate-400">
+        <p className="mt-3 text-xs text-neutral-400">
           Fine-tune intervals and fixed times directly in Supabase for now
           (reminder_settings table).
         </p>

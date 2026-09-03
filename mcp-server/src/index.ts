@@ -46,6 +46,24 @@ server.registerTool(
 );
 
 server.registerTool(
+  'get_water_intake',
+  {
+    title: 'Get water intake',
+    description: 'Water intake log entries (ml) for the last N days.',
+    inputSchema: { days: z.number().int().min(1).max(90).default(14) },
+  },
+  async ({ days }) => {
+    const { data, error } = await supabase
+      .from('water_logs')
+      .select('logged_at, amount_ml')
+      .gte('logged_at', daysAgoIso(days))
+      .order('logged_at');
+    if (error) throw error;
+    return textResult(data);
+  },
+);
+
+server.registerTool(
   'get_weight_trend',
   {
     title: 'Get weight trend',
@@ -116,7 +134,7 @@ server.registerTool(
   async ({ date }) => {
     const dayStart = `${date}T00:00:00.000Z`;
     const dayEnd = `${date}T23:59:59.999Z`;
-    const [activity, weight, medLogs, symptoms] = await Promise.all([
+    const [activity, weight, medLogs, symptoms, water] = await Promise.all([
       supabase
         .from('daily_activity')
         .select('*')
@@ -137,6 +155,11 @@ server.registerTool(
         .select('*')
         .gte('logged_at', dayStart)
         .lte('logged_at', dayEnd),
+      supabase
+        .from('water_logs')
+        .select('*')
+        .gte('logged_at', dayStart)
+        .lte('logged_at', dayEnd),
     ]);
     return textResult({
       date,
@@ -144,6 +167,7 @@ server.registerTool(
       weight_logs: weight.data ?? [],
       medication_logs: medLogs.data ?? [],
       symptom_logs: symptoms.data ?? [],
+      water_logs: water.data ?? [],
     });
   },
 );

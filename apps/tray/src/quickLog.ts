@@ -7,12 +7,14 @@ async function currentUserId(): Promise<string> {
   return data.user.id;
 }
 
+const TRAY_WATER_GLASS_ML = 250;
+
 export async function logWater(): Promise<void> {
   const user_id = await currentUserId();
   await supabase
-    .from('symptom_logs')
-    .insert({ user_id, label: 'water', notes: 'Logged from tray' });
-  notify('Water logged 💧');
+    .from('water_logs')
+    .insert({ user_id, amount_ml: TRAY_WATER_GLASS_ML });
+  notify(`Water logged (${TRAY_WATER_GLASS_ML}ml) 💧`);
 }
 
 export async function logStandingDesk(): Promise<void> {

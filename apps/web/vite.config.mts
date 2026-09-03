@@ -24,8 +24,8 @@ export default defineConfig(() => ({
         name: 'Pulsr',
         short_name: 'Pulsr',
         description: 'Personal health, fitness and lifestyle tracker',
-        theme_color: '#0f172a',
-        background_color: '#0f172a',
+        theme_color: '#1c1e2a',
+        background_color: '#1c1e2a',
         display: 'standalone',
         icons: [
           { src: 'icon-192.png', sizes: '192x192', type: 'image/png' },

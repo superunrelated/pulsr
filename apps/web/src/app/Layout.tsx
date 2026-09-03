@@ -19,16 +19,16 @@ const TABS = [
 
 export function Layout() {
   return (
-    <div className="flex min-h-screen flex-col bg-slate-50">
-      <header className="border-b border-slate-200 bg-white px-4 py-3">
-        <h1 className="text-lg font-semibold text-slate-900">Pulsr</h1>
+    <div className="flex min-h-screen flex-col bg-neutral-100">
+      <header className="flex h-14 items-center bg-[#1c1e2a] px-4">
+        <h1 className="font-serif text-lg font-semibold text-white">Pulsr</h1>
       </header>
 
       <main className="flex-1 overflow-y-auto pb-20">
         <Outlet />
       </main>
 
-      <nav className="fixed inset-x-0 bottom-0 flex border-t border-slate-200 bg-white">
+      <nav className="fixed inset-x-0 bottom-0 flex border-t border-neutral-200 bg-white">
         {TABS.map(({ to, label, icon: Icon, end }) => (
           <NavLink
             key={to}
@@ -36,7 +36,7 @@ export function Layout() {
             end={end}
             className={({ isActive }) =>
               `flex flex-1 flex-col items-center gap-1 py-2 text-xs ${
-                isActive ? 'text-slate-900' : 'text-slate-400'
+                isActive ? 'text-[#1c1e2a]' : 'text-neutral-400'
               }`
             }
           >

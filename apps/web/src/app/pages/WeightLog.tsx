@@ -43,11 +43,11 @@ export function WeightLog() {
             required
             value={weight}
             onChange={(e) => setWeight(e.target.value)}
-            className="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className="flex-1 rounded border border-neutral-300 px-3 py-2 text-sm"
           />
           <button
             type="submit"
-            className="rounded-md bg-slate-900 px-4 py-2 text-sm text-white"
+            className="rounded bg-[#1c1e2a] px-4 py-2 text-sm text-white"
           >
             Add
           </button>
@@ -55,19 +55,19 @@ export function WeightLog() {
       </Card>
 
       <Card title="History">
-        <ul className="divide-y divide-slate-100">
+        <ul className="divide-y divide-neutral-100">
           {entries.map((entry) => (
             <li key={entry.id} className="flex justify-between py-2 text-sm">
-              <span className="text-slate-600">
+              <span className="text-neutral-600">
                 {new Date(entry.logged_at).toLocaleDateString()}
               </span>
-              <span className="font-medium text-slate-900">
+              <span className="font-medium text-neutral-900">
                 {entry.weight_kg} kg
               </span>
             </li>
           ))}
           {entries.length === 0 && (
-            <p className="py-2 text-sm text-slate-400">No entries yet.</p>
+            <p className="py-2 text-sm text-neutral-400">No entries yet.</p>
           )}
         </ul>
       </Card>

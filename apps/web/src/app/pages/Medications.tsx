@@ -65,26 +65,26 @@ export function Medications() {
             required
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className="w-full rounded border border-neutral-300 px-3 py-2 text-sm"
           />
           <input
             placeholder="Dosage (optional)"
             value={dosage}
             onChange={(e) => setDosage(e.target.value)}
-            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className="w-full rounded border border-neutral-300 px-3 py-2 text-sm"
           />
           <div className="flex items-center gap-2">
-            <label className="text-sm text-slate-600">Fixed time</label>
+            <label className="text-sm text-neutral-600">Fixed time</label>
             <input
               type="time"
               value={time}
               onChange={(e) => setTime(e.target.value)}
-              className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+              className="rounded border border-neutral-300 px-3 py-2 text-sm"
             />
           </div>
           <button
             type="submit"
-            className="w-full rounded-md bg-slate-900 px-4 py-2 text-sm text-white"
+            className="w-full rounded bg-[#1c1e2a] px-4 py-2 text-sm text-white"
           >
             Add medication
           </button>
@@ -92,28 +92,28 @@ export function Medications() {
       </Card>
 
       <Card title="Your medications">
-        <ul className="divide-y divide-slate-100">
+        <ul className="divide-y divide-neutral-100">
           {medications.map((med) => (
             <li
               key={med.id}
               className="flex items-center justify-between py-2 text-sm"
             >
               <div>
-                <p className="font-medium text-slate-900">{med.name}</p>
+                <p className="font-medium text-neutral-900">{med.name}</p>
                 {med.dosage && (
-                  <p className="text-xs text-slate-400">{med.dosage}</p>
+                  <p className="text-xs text-neutral-400">{med.dosage}</p>
                 )}
               </div>
               <button
                 onClick={() => logTaken(med)}
-                className="rounded-md bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700"
+                className="rounded bg-neutral-100 px-3 py-1 text-xs font-medium text-neutral-700"
               >
                 Log taken
               </button>
             </li>
           ))}
           {medications.length === 0 && (
-            <p className="py-2 text-sm text-slate-400">
+            <p className="py-2 text-sm text-neutral-400">
               No medications added yet.
             </p>
           )}
@@ -121,19 +121,19 @@ export function Medications() {
       </Card>
 
       <Card title="Recent adherence log">
-        <ul className="divide-y divide-slate-100">
+        <ul className="divide-y divide-neutral-100">
           {logs.map((log) => (
             <li key={log.id} className="flex justify-between py-2 text-sm">
-              <span className="text-slate-600">
+              <span className="text-neutral-600">
                 {new Date(log.scheduled_for).toLocaleString()}
               </span>
-              <span className="font-medium capitalize text-slate-900">
+              <span className="font-medium capitalize text-neutral-900">
                 {log.status}
               </span>
             </li>
           ))}
           {logs.length === 0 && (
-            <p className="py-2 text-sm text-slate-400">No log entries yet.</p>
+            <p className="py-2 text-sm text-neutral-400">No log entries yet.</p>
           )}
         </ul>
       </Card>

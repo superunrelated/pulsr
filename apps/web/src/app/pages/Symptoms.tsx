@@ -46,14 +46,14 @@ export function Symptoms() {
             required
             value={label}
             onChange={(e) => setLabel(e.target.value)}
-            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className="w-full rounded border border-neutral-300 px-3 py-2 text-sm"
           />
           <div className="flex items-center gap-2">
-            <label className="text-sm text-slate-600">Severity</label>
+            <label className="text-sm text-neutral-600">Severity</label>
             <select
               value={severity}
               onChange={(e) => setSeverity(e.target.value)}
-              className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+              className="rounded border border-neutral-300 px-3 py-2 text-sm"
             >
               {[1, 2, 3, 4, 5].map((n) => (
                 <option key={n} value={n}>
@@ -66,11 +66,11 @@ export function Symptoms() {
             placeholder="Notes (optional)"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
-            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+            className="w-full rounded border border-neutral-300 px-3 py-2 text-sm"
           />
           <button
             type="submit"
-            className="w-full rounded-md bg-slate-900 px-4 py-2 text-sm text-white"
+            className="w-full rounded bg-[#1c1e2a] px-4 py-2 text-sm text-white"
           >
             Log entry
           </button>
@@ -78,27 +78,27 @@ export function Symptoms() {
       </Card>
 
       <Card title="History">
-        <ul className="divide-y divide-slate-100">
+        <ul className="divide-y divide-neutral-100">
           {entries.map((entry) => (
             <li key={entry.id} className="py-2 text-sm">
               <div className="flex justify-between">
-                <span className="font-medium text-slate-900">
+                <span className="font-medium text-neutral-900">
                   {entry.label}
                 </span>
-                <span className="text-slate-400">
+                <span className="text-neutral-400">
                   severity {entry.severity ?? '—'}
                 </span>
               </div>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-neutral-400">
                 {new Date(entry.logged_at).toLocaleString()}
               </p>
               {entry.notes && (
-                <p className="mt-1 text-slate-600">{entry.notes}</p>
+                <p className="mt-1 text-neutral-600">{entry.notes}</p>
               )}
             </li>
           ))}
           {entries.length === 0 && (
-            <p className="py-2 text-sm text-slate-400">No entries yet.</p>
+            <p className="py-2 text-sm text-neutral-400">No entries yet.</p>
           )}
         </ul>
       </Card>
