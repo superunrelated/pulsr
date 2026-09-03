@@ -1,4 +1,4 @@
-import { Card } from '@pulsr/ui';
+import { Card, DatePicker, getRecentDateOptions } from '@pulsr/ui';
 import type { Medication, MedicationLog } from '@pulsr/shared';
 import { RiCloseLine } from '@remixicon/react';
 import { useEffect, useState, type FormEvent } from 'react';
@@ -10,6 +10,7 @@ export function Medications() {
   const [name, setName] = useState('');
   const [dosage, setDosage] = useState('');
   const [time, setTime] = useState('08:00');
+  const [logDate, setLogDate] = useState(getRecentDateOptions()[0].date);
 
   async function refresh() {
     const [medsRes, logsRes] = await Promise.all([
@@ -46,12 +47,15 @@ export function Medications() {
   async function logTaken(medication: Medication) {
     const { data: userData } = await supabase.auth.getUser();
     if (!userData.user) return;
-    const now = new Date().toISOString();
+    const isToday = logDate === getRecentDateOptions()[0].date;
+    const takenAt = isToday
+      ? new Date().toISOString()
+      : `${logDate}T12:00:00.000Z`;
     await supabase.from('medication_logs').insert({
       user_id: userData.user.id,
       medication_id: medication.id,
-      scheduled_for: now,
-      taken_at: now,
+      scheduled_for: takenAt,
+      taken_at: takenAt,
       status: 'taken',
     });
     refresh();
@@ -98,6 +102,10 @@ export function Medications() {
       </Card>
 
       <Card title="Your medications">
+        <div className="mb-3">
+          <p className="mb-2 text-xs text-neutral-400">Logging for:</p>
+          <DatePicker value={logDate} onChange={setLogDate} />
+        </div>
         <ul className="divide-y divide-neutral-100">
           {medications.map((med) => (
             <li

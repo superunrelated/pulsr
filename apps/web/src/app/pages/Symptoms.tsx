@@ -1,4 +1,4 @@
-import { Card } from '@pulsr/ui';
+import { Card, DatePicker, getRecentDateOptions } from '@pulsr/ui';
 import type { SymptomLog } from '@pulsr/shared';
 import { RiCloseLine } from '@remixicon/react';
 import { useEffect, useState, type FormEvent } from 'react';
@@ -9,6 +9,7 @@ export function Symptoms() {
   const [label, setLabel] = useState('');
   const [severity, setSeverity] = useState('3');
   const [notes, setNotes] = useState('');
+  const [date, setDate] = useState(getRecentDateOptions()[0].date);
 
   async function refresh() {
     const { data } = await supabase
@@ -32,6 +33,7 @@ export function Symptoms() {
       label,
       severity: Number(severity),
       notes: notes || null,
+      logged_at: `${date}T12:00:00.000Z`,
     });
     setLabel('');
     setNotes('');
@@ -47,6 +49,7 @@ export function Symptoms() {
     <div className="space-y-4 p-4">
       <Card title="Log a symptom or condition">
         <form onSubmit={handleSubmit} className="space-y-2">
+          <DatePicker value={date} onChange={setDate} />
           <input
             placeholder="e.g. headache, knee pain, mood"
             required
