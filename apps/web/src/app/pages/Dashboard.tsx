@@ -104,11 +104,27 @@ export function Dashboard() {
   async function confirmWeight() {
     const { data: userData } = await supabase.auth.getUser();
     if (!userData.user) return;
-    const { data } = await supabase
-      .from('weight_logs')
-      .insert({ user_id: userData.user.id, weight_kg: pendingWeight })
-      .select()
-      .single();
+
+    const loggedToday =
+      latestWeight &&
+      latestWeight.logged_at.slice(0, 10) === todayRange().today;
+
+    const { data } = loggedToday
+      ? await supabase
+          .from('weight_logs')
+          .update({
+            weight_kg: pendingWeight,
+            logged_at: new Date().toISOString(),
+          })
+          .eq('id', latestWeight.id)
+          .select()
+          .single()
+      : await supabase
+          .from('weight_logs')
+          .insert({ user_id: userData.user.id, weight_kg: pendingWeight })
+          .select()
+          .single();
+
     if (data) setLatestWeight(data);
   }
 
