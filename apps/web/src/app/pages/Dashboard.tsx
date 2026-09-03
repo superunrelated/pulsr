@@ -101,30 +101,31 @@ export function Dashboard() {
     const { data: userData } = await supabase.auth.getUser();
     if (!userData.user) return;
 
-    const loggedToday =
-      latestWeight &&
-      latestWeight.logged_at.slice(0, 10) === todayRange().today;
-
-    const { data } = loggedToday
-      ? await supabase
-          .from('weight_logs')
-          .update({ weight_kg: value, logged_at: new Date().toISOString() })
-          .eq('id', latestWeight.id)
-          .select()
-          .single()
-      : await supabase
-          .from('weight_logs')
-          .insert({ user_id: userData.user.id, weight_kg: value })
-          .select()
-          .single();
+    // True DB-level upsert keyed by the unique (user_id, log_date) index —
+    // avoids the race where rapid +/-/= clicks each read a stale
+    // `latestWeight` from React state and all decide to insert.
+    const { data } = await supabase
+      .from('weight_logs')
+      .upsert(
+        {
+          user_id: userData.user.id,
+          weight_kg: value,
+          logged_at: new Date().toISOString(),
+        },
+        { onConflict: 'user_id,log_date' },
+      )
+      .select()
+      .single();
 
     if (data) setLatestWeight(data);
   }
 
   function adjustWeight(deltaKg: number) {
-    const next = Math.round((pendingWeight + deltaKg) * 10) / 10;
-    setPendingWeight(next);
-    saveWeight(next);
+    setPendingWeight((prev) => {
+      const next = Math.round((prev + deltaKg) * 10) / 10;
+      saveWeight(next);
+      return next;
+    });
   }
 
   async function confirmWeight() {

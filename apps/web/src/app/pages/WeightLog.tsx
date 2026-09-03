@@ -27,29 +27,16 @@ export function WeightLog() {
     const { data: userData } = await supabase.auth.getUser();
     if (!userData.user || !weight) return;
 
-    // Only one entry per calendar day — overwrite it if one already exists for the chosen date.
-    const { data: existing } = await supabase
-      .from('weight_logs')
-      .select('id')
-      .gte('logged_at', `${date}T00:00:00.000Z`)
-      .lte('logged_at', `${date}T23:59:59.999Z`)
-      .maybeSingle();
-
-    if (existing) {
-      await supabase
-        .from('weight_logs')
-        .update({
-          weight_kg: Number(weight),
-          logged_at: `${date}T12:00:00.000Z`,
-        })
-        .eq('id', existing.id);
-    } else {
-      await supabase.from('weight_logs').insert({
+    // Upsert on the unique (user_id, log_date) index — only one entry per
+    // calendar day, whichever date is picked.
+    await supabase.from('weight_logs').upsert(
+      {
         user_id: userData.user.id,
         weight_kg: Number(weight),
         logged_at: `${date}T12:00:00.000Z`,
-      });
-    }
+      },
+      { onConflict: 'user_id,log_date' },
+    );
 
     setWeight('');
     refresh();
