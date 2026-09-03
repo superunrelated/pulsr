@@ -1,0 +1,7 @@
+project_id = "wjgyqqqvimymwxdpnabk"
+
+[functions.google-fit-sync]
+# Google's OAuth redirect hits /callback with no Authorization header, so
+# JWT verification has to be off. The callback route trusts the `state`
+# query param (set to the signed-in user's id) instead.
+verify_jwt = false
