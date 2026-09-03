@@ -25,6 +25,7 @@ export function Dashboard() {
   const [todaysMeds, setTodaysMeds] = useState<MedicationLog[]>([]);
   const [todaysWater, setTodaysWater] = useState<WaterLog[]>([]);
   const [showCheckinBanner, setShowCheckinBanner] = useState(false);
+  const [pendingWeight, setPendingWeight] = useState(70);
 
   async function refreshWater() {
     const { dayStart, dayEnd } = todayRange();
@@ -67,7 +68,10 @@ export function Dashboard() {
       .order('logged_at', { ascending: false })
       .limit(1)
       .maybeSingle()
-      .then(({ data }) => setLatestWeight(data));
+      .then(({ data }) => {
+        setLatestWeight(data);
+        if (data) setPendingWeight(data.weight_kg);
+      });
     refreshMeds();
     refreshWater();
     supabase
@@ -91,6 +95,21 @@ export function Dashboard() {
       status: 'taken',
     });
     refreshMeds();
+  }
+
+  function adjustWeight(deltaKg: number) {
+    setPendingWeight((prev) => Math.round((prev + deltaKg) * 10) / 10);
+  }
+
+  async function confirmWeight() {
+    const { data: userData } = await supabase.auth.getUser();
+    if (!userData.user) return;
+    const { data } = await supabase
+      .from('weight_logs')
+      .insert({ user_id: userData.user.id, weight_kg: pendingWeight })
+      .select()
+      .single();
+    if (data) setLatestWeight(data);
   }
 
   async function logWater(amountMl: number) {
@@ -120,19 +139,51 @@ export function Dashboard() {
           value={activity?.steps?.toLocaleString() ?? '—'}
         />
         <StatCard
-          label="Latest weight"
-          value={latestWeight ? `${latestWeight.weight_kg} kg` : '—'}
-          hint={
-            latestWeight
-              ? new Date(latestWeight.logged_at).toLocaleDateString()
-              : undefined
-          }
-        />
-        <StatCard
           label="Active minutes"
           value={activity?.active_minutes?.toString() ?? '—'}
         />
       </div>
+
+      <Card>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-[11px] font-medium uppercase tracking-wide text-neutral-400">
+              Latest weight
+            </p>
+            <p className="mt-1 font-serif text-2xl font-semibold text-[#1c1e2a]">
+              {pendingWeight.toFixed(1)} kg
+            </p>
+            <p className="mt-1 text-xs text-neutral-400">
+              {latestWeight
+                ? new Date(latestWeight.logged_at).toLocaleDateString()
+                : 'no entries yet'}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => adjustWeight(-0.1)}
+              aria-label="Decrease weight"
+              className="flex h-8 w-8 items-center justify-center rounded bg-neutral-100 text-sm font-medium text-neutral-700"
+            >
+              −
+            </button>
+            <button
+              onClick={() => adjustWeight(0.1)}
+              aria-label="Increase weight"
+              className="flex h-8 w-8 items-center justify-center rounded bg-neutral-100 text-sm font-medium text-neutral-700"
+            >
+              +
+            </button>
+            <button
+              onClick={confirmWeight}
+              aria-label="Log this weight"
+              className="flex h-8 w-8 items-center justify-center rounded bg-[#1c1e2a] text-sm font-medium text-white"
+            >
+              =
+            </button>
+          </div>
+        </div>
+      </Card>
 
       <Card>
         <div className="flex items-center justify-between gap-3">
