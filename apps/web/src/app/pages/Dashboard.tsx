@@ -97,11 +97,7 @@ export function Dashboard() {
     refreshMeds();
   }
 
-  function adjustWeight(deltaKg: number) {
-    setPendingWeight((prev) => Math.round((prev + deltaKg) * 10) / 10);
-  }
-
-  async function confirmWeight() {
+  async function saveWeight(value: number) {
     const { data: userData } = await supabase.auth.getUser();
     if (!userData.user) return;
 
@@ -112,20 +108,27 @@ export function Dashboard() {
     const { data } = loggedToday
       ? await supabase
           .from('weight_logs')
-          .update({
-            weight_kg: pendingWeight,
-            logged_at: new Date().toISOString(),
-          })
+          .update({ weight_kg: value, logged_at: new Date().toISOString() })
           .eq('id', latestWeight.id)
           .select()
           .single()
       : await supabase
           .from('weight_logs')
-          .insert({ user_id: userData.user.id, weight_kg: pendingWeight })
+          .insert({ user_id: userData.user.id, weight_kg: value })
           .select()
           .single();
 
     if (data) setLatestWeight(data);
+  }
+
+  function adjustWeight(deltaKg: number) {
+    const next = Math.round((pendingWeight + deltaKg) * 10) / 10;
+    setPendingWeight(next);
+    saveWeight(next);
+  }
+
+  async function confirmWeight() {
+    await saveWeight(pendingWeight);
   }
 
   async function logWater(amountMl: number) {
