@@ -49,8 +49,14 @@ export function Settings() {
       access_type: 'offline',
       prompt: 'consent',
       scope: [
+        // Legacy Fitness API — still used for steps/calories/active-minutes.
         'https://www.googleapis.com/auth/fitness.activity.read',
         'https://www.googleapis.com/auth/fitness.sleep.read',
+        // Google Health API (Fitness API's replacement, sunsetting end of
+        // 2026) — used for workouts/sleep sessions, which the legacy
+        // Sessions API stopped actually returning data for.
+        'https://www.googleapis.com/auth/googlehealth.activity_and_fitness.readonly',
+        'https://www.googleapis.com/auth/googlehealth.sleep.readonly',
       ].join(' '),
       state: userData.user.id,
     });

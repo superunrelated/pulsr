@@ -215,10 +215,10 @@ async function syncConnection(connection: {
     if (upsertError) throw upsertError;
   }
 
-  const { workouts, sleepSessions } = await fetchSessions(
+  const { workouts, sleepSessions } = await fetchHealthApiSessions(
     access_token,
-    startTimeMillis,
-    now,
+    new Date(startTimeMillis).toISOString(),
+    new Date(now).toISOString(),
   );
 
   if (workouts.length > 0) {
@@ -252,33 +252,19 @@ async function syncConnection(connection: {
   };
 }
 
-// Google Fit activity type codes that represent sleep (general "Sleep" plus
-// the granular sleep-stage types the newer Sleep API reports).
-const SLEEP_ACTIVITY_TYPES = new Set([72, 109, 110, 111, 112, 121]);
+// Google Fit's legacy Sessions API (fitness/v1/users/me/sessions) stopped
+// returning any session-level data for accounts already migrated to the
+// new Google Health platform, even though it hasn't been formally shut
+// down yet (sunset scheduled end of 2026, sign-ups closed since 2024). The
+// Google Health API — the Fitness API's actual replacement — is what now
+// carries workouts ("exercise") and sleep for these accounts.
+//
+// Docs: https://developers.google.com/health
 
-const ACTIVITY_TYPE_NAMES: Record<number, string> = {
-  7: 'walking',
-  8: 'running',
-  1: 'biking',
-  9: 'aerobics',
-  10: 'badminton',
-  82: 'swimming',
-  57: 'strength training',
-  108: 'yoga',
-  119: 'hiit',
-};
-
-interface FitSession {
-  id: string;
-  startTimeMillis: string;
-  endTimeMillis: string;
-  activityType?: number;
-}
-
-async function fetchSessions(
+async function fetchHealthApiSessions(
   accessToken: string,
-  startTimeMillis: number,
-  endTimeMillis: number,
+  startTimeIso: string,
+  endTimeIso: string,
 ): Promise<{
   workouts: {
     started_at: string;
@@ -292,59 +278,79 @@ async function fetchSessions(
     duration_minutes: number;
     source: string;
   }[];
-  debug?: unknown;
 }> {
-  const params = new URLSearchParams({
-    startTime: new Date(startTimeMillis).toISOString(),
-    endTime: new Date(endTimeMillis).toISOString(),
-  });
-  const res = await fetch(
-    `https://www.googleapis.com/fitness/v1/users/me/sessions?${params.toString()}`,
-    { headers: { Authorization: `Bearer ${accessToken}` } },
-  );
-  if (!res.ok) {
-    const errText = await res.text();
-    console.error('sessions fetch failed', errText);
-    return {
-      workouts: [],
-      sleepSessions: [],
-      debug: { status: res.status, errText },
-    };
-  }
-  const body = (await res.json()) as { session?: FitSession[] };
-  const { session = [] } = body;
+  const [exercisePoints, sleepPoints] = await Promise.all([
+    listHealthDataPoints(accessToken, 'exercise', startTimeIso, endTimeIso),
+    listHealthDataPoints(accessToken, 'sleep', startTimeIso, endTimeIso),
+  ]);
 
-  const workouts = [];
-  const sleepSessions = [];
-  for (const s of session) {
-    const startedAt = new Date(Number(s.startTimeMillis)).toISOString();
-    const endedAt = new Date(Number(s.endTimeMillis)).toISOString();
-    if (s.activityType != null && SLEEP_ACTIVITY_TYPES.has(s.activityType)) {
-      const durationMinutes = Math.round(
-        (Number(s.endTimeMillis) - Number(s.startTimeMillis)) / 60_000,
+  const workouts = exercisePoints
+    .filter((p) => p.interval?.startTime && p.interval?.endTime)
+    .map((p) => ({
+      started_at: p.interval.startTime,
+      ended_at: p.interval.endTime,
+      activity_type: (p.exerciseType ?? 'unknown').toLowerCase(),
+      source: 'google_health',
+    }));
+
+  const sleepSessions = sleepPoints
+    .filter((p) => p.interval?.startTime && p.interval?.endTime)
+    .map((p) => {
+      const start = new Date(p.interval.startTime).getTime();
+      const end = new Date(p.interval.endTime).getTime();
+      return {
+        started_at: p.interval.startTime,
+        ended_at: p.interval.endTime,
+        duration_minutes: Math.round((end - start) / 60_000),
+        source: 'google_health',
+      };
+    });
+
+  return { workouts, sleepSessions };
+}
+
+interface HealthDataPoint {
+  interval?: { startTime: string; endTime: string };
+  exerciseType?: string;
+}
+
+async function listHealthDataPoints(
+  accessToken: string,
+  dataType: 'exercise' | 'sleep',
+  startTimeIso: string,
+  endTimeIso: string,
+): Promise<HealthDataPoint[]> {
+  const points: HealthDataPoint[] = [];
+  let pageToken: string | undefined;
+
+  do {
+    const params = new URLSearchParams({
+      pageSize: '25',
+      filter: `${dataType}.interval.start_time>="${startTimeIso}" AND ${dataType}.interval.end_time<"${endTimeIso}"`,
+    });
+    if (pageToken) params.set('pageToken', pageToken);
+
+    const res = await fetch(
+      `https://health.googleapis.com/v4/users/me/dataTypes/${dataType}/dataPoints?${params.toString()}`,
+      { headers: { Authorization: `Bearer ${accessToken}` } },
+    );
+    if (!res.ok) {
+      console.error(
+        `Health API ${dataType} fetch failed`,
+        res.status,
+        await res.text(),
       );
-      sleepSessions.push({
-        started_at: startedAt,
-        ended_at: endedAt,
-        duration_minutes: durationMinutes,
-        source: 'google_fit',
-      });
-    } else {
-      workouts.push({
-        started_at: startedAt,
-        ended_at: endedAt,
-        activity_type:
-          ACTIVITY_TYPE_NAMES[s.activityType ?? -1] ??
-          `type_${s.activityType ?? 'unknown'}`,
-        source: 'google_fit',
-      });
+      return points;
     }
-  }
-  return {
-    workouts,
-    sleepSessions,
-    debug: { rawSessionCount: session.length },
-  };
+    const body = (await res.json()) as {
+      dataPoints?: HealthDataPoint[];
+      nextPageToken?: string;
+    };
+    points.push(...(body.dataPoints ?? []));
+    pageToken = body.nextPageToken;
+  } while (pageToken);
+
+  return points;
 }
 
 function json(body: unknown, status = 200): Response {
