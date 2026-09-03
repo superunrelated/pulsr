@@ -4,6 +4,7 @@
 dist
 tmp
 out-tsc
+*.tsbuildinfo
 
 # dependencies
 node_modules
@@ -43,6 +44,10 @@ Thumbs.db
 .env.local
 .env.*.local
 .mcp.json
+
+# Supabase CLI local cache
+supabase/.temp
+supabase/.branches
 
 .nx/cache
 .nx/workspace-data

@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { app, Menu, Tray, nativeImage } from 'electron';
 import path from 'node:path';
 import { signIn } from './supabase';
