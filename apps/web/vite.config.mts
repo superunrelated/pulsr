@@ -6,6 +6,8 @@ import { VitePWA } from 'vite-plugin-pwa';
 export default defineConfig(() => ({
   root: import.meta.dirname,
   cacheDir: '../../node_modules/.vite/apps/web',
+  // Served from https://superunrelated.github.io/pulsr/, not domain root.
+  base: process.env.GITHUB_PAGES ? '/pulsr/' : '/',
   server: {
     port: 4200,
     host: 'localhost',
