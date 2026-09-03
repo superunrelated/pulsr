@@ -21,4 +21,8 @@ jobs:
           cache: 'npm'
 
       - run: npm ci
+      # mcp-server is a standalone package (own package.json/lockfile,
+      # deliberately not an npm workspace member), so it needs its own install.
+      - run: npm ci
+        working-directory: mcp-server
       - run: npx nx run-many -t lint test build typecheck
