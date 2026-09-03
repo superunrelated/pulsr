@@ -215,13 +215,136 @@ async function syncConnection(connection: {
     if (upsertError) throw upsertError;
   }
 
+  const { workouts, sleepSessions } = await fetchSessions(
+    access_token,
+    startTimeMillis,
+    now,
+  );
+
+  if (workouts.length > 0) {
+    const { error: workoutsError } = await admin.from('workouts').upsert(
+      workouts.map((w) => ({ ...w, user_id: connection.user_id })),
+      { onConflict: 'user_id,started_at,source' },
+    );
+    if (workoutsError) throw workoutsError;
+  }
+
+  if (sleepSessions.length > 0) {
+    const { error: sleepError } = await admin.from('sleep_sessions').upsert(
+      sleepSessions.map((s) => ({ ...s, user_id: connection.user_id })),
+      { onConflict: 'user_id,started_at,source' },
+    );
+    if (sleepError) throw sleepError;
+  }
+
   await admin
     .from('wearable_connections')
     .update({ last_synced_at: new Date().toISOString() })
     .eq('user_id', connection.user_id)
     .eq('provider', 'google_fit');
 
-  return { user_id: connection.user_id, ok: true, days_synced: rows.length };
+  return {
+    user_id: connection.user_id,
+    ok: true,
+    days_synced: rows.length,
+    workouts_synced: workouts.length,
+    sleep_sessions_synced: sleepSessions.length,
+  };
+}
+
+// Google Fit activity type codes that represent sleep (general "Sleep" plus
+// the granular sleep-stage types the newer Sleep API reports).
+const SLEEP_ACTIVITY_TYPES = new Set([72, 109, 110, 111, 112, 121]);
+
+const ACTIVITY_TYPE_NAMES: Record<number, string> = {
+  7: 'walking',
+  8: 'running',
+  1: 'biking',
+  9: 'aerobics',
+  10: 'badminton',
+  82: 'swimming',
+  57: 'strength training',
+  108: 'yoga',
+  119: 'hiit',
+};
+
+interface FitSession {
+  id: string;
+  startTimeMillis: string;
+  endTimeMillis: string;
+  activityType?: number;
+}
+
+async function fetchSessions(
+  accessToken: string,
+  startTimeMillis: number,
+  endTimeMillis: number,
+): Promise<{
+  workouts: {
+    started_at: string;
+    ended_at: string;
+    activity_type: string;
+    source: string;
+  }[];
+  sleepSessions: {
+    started_at: string;
+    ended_at: string;
+    duration_minutes: number;
+    source: string;
+  }[];
+  debug?: unknown;
+}> {
+  const params = new URLSearchParams({
+    startTime: new Date(startTimeMillis).toISOString(),
+    endTime: new Date(endTimeMillis).toISOString(),
+  });
+  const res = await fetch(
+    `https://www.googleapis.com/fitness/v1/users/me/sessions?${params.toString()}`,
+    { headers: { Authorization: `Bearer ${accessToken}` } },
+  );
+  if (!res.ok) {
+    const errText = await res.text();
+    console.error('sessions fetch failed', errText);
+    return {
+      workouts: [],
+      sleepSessions: [],
+      debug: { status: res.status, errText },
+    };
+  }
+  const body = (await res.json()) as { session?: FitSession[] };
+  const { session = [] } = body;
+
+  const workouts = [];
+  const sleepSessions = [];
+  for (const s of session) {
+    const startedAt = new Date(Number(s.startTimeMillis)).toISOString();
+    const endedAt = new Date(Number(s.endTimeMillis)).toISOString();
+    if (s.activityType != null && SLEEP_ACTIVITY_TYPES.has(s.activityType)) {
+      const durationMinutes = Math.round(
+        (Number(s.endTimeMillis) - Number(s.startTimeMillis)) / 60_000,
+      );
+      sleepSessions.push({
+        started_at: startedAt,
+        ended_at: endedAt,
+        duration_minutes: durationMinutes,
+        source: 'google_fit',
+      });
+    } else {
+      workouts.push({
+        started_at: startedAt,
+        ended_at: endedAt,
+        activity_type:
+          ACTIVITY_TYPE_NAMES[s.activityType ?? -1] ??
+          `type_${s.activityType ?? 'unknown'}`,
+        source: 'google_fit',
+      });
+    }
+  }
+  return {
+    workouts,
+    sleepSessions,
+    debug: { rawSessionCount: session.length },
+  };
 }
 
 function json(body: unknown, status = 200): Response {
