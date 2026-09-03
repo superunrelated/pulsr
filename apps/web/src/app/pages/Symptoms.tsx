@@ -1,5 +1,6 @@
 import { Card } from '@pulsr/ui';
 import type { SymptomLog } from '@pulsr/shared';
+import { RiCloseLine } from '@remixicon/react';
 import { useEffect, useState, type FormEvent } from 'react';
 import { supabase } from '../../lib/supabase';
 
@@ -34,6 +35,11 @@ export function Symptoms() {
     });
     setLabel('');
     setNotes('');
+    refresh();
+  }
+
+  async function removeEntry(id: string) {
+    await supabase.from('symptom_logs').delete().eq('id', id);
     refresh();
   }
 
@@ -81,13 +87,22 @@ export function Symptoms() {
         <ul className="divide-y divide-neutral-100">
           {entries.map((entry) => (
             <li key={entry.id} className="py-2 text-sm">
-              <div className="flex justify-between">
+              <div className="flex items-center justify-between">
                 <span className="font-medium text-neutral-900">
                   {entry.label}
                 </span>
-                <span className="text-neutral-400">
-                  severity {entry.severity ?? '—'}
-                </span>
+                <div className="flex items-center gap-3">
+                  <span className="text-neutral-400">
+                    severity {entry.severity ?? '—'}
+                  </span>
+                  <button
+                    onClick={() => removeEntry(entry.id)}
+                    aria-label="Remove entry"
+                    className="text-neutral-400 hover:text-red-500"
+                  >
+                    <RiCloseLine size={16} />
+                  </button>
+                </div>
               </div>
               <p className="text-xs text-neutral-400">
                 {new Date(entry.logged_at).toLocaleString()}

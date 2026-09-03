@@ -1,5 +1,6 @@
 import { Card } from '@pulsr/ui';
 import type { Medication, MedicationLog } from '@pulsr/shared';
+import { RiCloseLine } from '@remixicon/react';
 import { useEffect, useState, type FormEvent } from 'react';
 import { supabase } from '../../lib/supabase';
 
@@ -53,6 +54,11 @@ export function Medications() {
       taken_at: now,
       status: 'taken',
     });
+    refresh();
+  }
+
+  async function removeLog(id: string) {
+    await supabase.from('medication_logs').delete().eq('id', id);
     refresh();
   }
 
@@ -123,13 +129,25 @@ export function Medications() {
       <Card title="Recent adherence log">
         <ul className="divide-y divide-neutral-100">
           {logs.map((log) => (
-            <li key={log.id} className="flex justify-between py-2 text-sm">
+            <li
+              key={log.id}
+              className="flex items-center justify-between py-2 text-sm"
+            >
               <span className="text-neutral-600">
                 {new Date(log.scheduled_for).toLocaleString()}
               </span>
-              <span className="font-medium capitalize text-neutral-900">
-                {log.status}
-              </span>
+              <div className="flex items-center gap-3">
+                <span className="font-medium capitalize text-neutral-900">
+                  {log.status}
+                </span>
+                <button
+                  onClick={() => removeLog(log.id)}
+                  aria-label="Remove entry"
+                  className="text-neutral-400 hover:text-red-500"
+                >
+                  <RiCloseLine size={16} />
+                </button>
+              </div>
             </li>
           ))}
           {logs.length === 0 && (

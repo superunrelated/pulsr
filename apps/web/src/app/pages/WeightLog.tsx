@@ -1,5 +1,6 @@
 import { Card } from '@pulsr/ui';
 import type { WeightLog as WeightLogEntry } from '@pulsr/shared';
+import { RiCloseLine } from '@remixicon/react';
 import { useEffect, useState, type FormEvent } from 'react';
 import { supabase } from '../../lib/supabase';
 
@@ -32,6 +33,11 @@ export function WeightLog() {
     refresh();
   }
 
+  async function removeEntry(id: string) {
+    await supabase.from('weight_logs').delete().eq('id', id);
+    refresh();
+  }
+
   return (
     <div className="space-y-4 p-4">
       <Card title="Log your weight">
@@ -57,13 +63,25 @@ export function WeightLog() {
       <Card title="History">
         <ul className="divide-y divide-neutral-100">
           {entries.map((entry) => (
-            <li key={entry.id} className="flex justify-between py-2 text-sm">
+            <li
+              key={entry.id}
+              className="flex items-center justify-between py-2 text-sm"
+            >
               <span className="text-neutral-600">
                 {new Date(entry.logged_at).toLocaleDateString()}
               </span>
-              <span className="font-medium text-neutral-900">
-                {Number(entry.weight_kg).toFixed(1)} kg
-              </span>
+              <div className="flex items-center gap-3">
+                <span className="font-medium text-neutral-900">
+                  {Number(entry.weight_kg).toFixed(1)} kg
+                </span>
+                <button
+                  onClick={() => removeEntry(entry.id)}
+                  aria-label="Remove entry"
+                  className="text-neutral-400 hover:text-red-500"
+                >
+                  <RiCloseLine size={16} />
+                </button>
+              </div>
             </li>
           ))}
           {entries.length === 0 && (
