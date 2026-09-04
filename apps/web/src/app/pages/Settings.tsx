@@ -58,7 +58,15 @@ export function Settings() {
         'https://www.googleapis.com/auth/googlehealth.activity_and_fitness.readonly',
         'https://www.googleapis.com/auth/googlehealth.sleep.readonly',
       ].join(' '),
-      state: userData.user.id,
+      // The Edge Function's redirect_uri is fixed to Supabase's own domain,
+      // so it can't know which environment (local dev vs the deployed
+      // Pages site) to send the user back to — pack that into state.
+      state: btoa(
+        JSON.stringify({
+          userId: userData.user.id,
+          returnTo: `${window.location.origin}${import.meta.env.BASE_URL}settings`,
+        }),
+      ),
     });
     window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
   }

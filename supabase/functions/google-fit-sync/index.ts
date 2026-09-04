@@ -48,10 +48,34 @@ Deno.serve(async (req) => {
   }
 });
 
+const ALLOWED_RETURN_ORIGINS = [
+  'https://superunrelated.github.io',
+  'http://localhost:4200',
+];
+
 async function handleOAuthCallback(url: URL): Promise<Response> {
   const code = url.searchParams.get('code');
-  const userId = url.searchParams.get('state'); // set to the signed-in user's id when redirecting to Google
-  if (!code || !userId) return json({ error: 'missing code or state' }, 400);
+  const stateRaw = url.searchParams.get('state');
+  if (!code || !stateRaw) return json({ error: 'missing code or state' }, 400);
+
+  let userId: string;
+  let returnTo: string;
+  try {
+    const decoded = JSON.parse(atob(stateRaw)) as {
+      userId: string;
+      returnTo: string;
+    };
+    userId = decoded.userId;
+    returnTo = decoded.returnTo;
+    if (
+      !userId ||
+      !ALLOWED_RETURN_ORIGINS.some((origin) => returnTo.startsWith(origin))
+    ) {
+      throw new Error('invalid state contents');
+    }
+  } catch {
+    return json({ error: 'invalid state' }, 400);
+  }
 
   const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
@@ -106,7 +130,7 @@ async function handleOAuthCallback(url: URL): Promise<Response> {
 
   return new Response(null, {
     status: 302,
-    headers: { Location: '/settings/wearables?connected=google_fit' },
+    headers: { Location: `${returnTo}?connected=google_fit` },
   });
 }
 
