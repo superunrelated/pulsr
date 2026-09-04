@@ -291,24 +291,26 @@ async function syncGoogleHealth(userId: string, accessToken: string) {
   ]);
 
   const workouts = exercisePoints
-    .filter((p) => p.interval?.startTime && p.interval?.endTime)
+    .filter(
+      (p) => p.exercise?.interval?.startTime && p.exercise?.interval?.endTime,
+    )
     .map((p) => ({
       user_id: userId,
-      started_at: p.interval.startTime,
-      ended_at: p.interval.endTime,
-      activity_type: (p.exerciseType ?? 'unknown').toLowerCase(),
+      started_at: p.exercise!.interval.startTime,
+      ended_at: p.exercise!.interval.endTime,
+      activity_type: (p.exercise!.exerciseType ?? 'unknown').toLowerCase(),
       source: 'google_health',
     }));
 
   const sleepSessions = sleepPoints
-    .filter((p) => p.interval?.startTime && p.interval?.endTime)
+    .filter((p) => p.sleep?.interval?.startTime && p.sleep?.interval?.endTime)
     .map((p) => {
-      const start = new Date(p.interval.startTime).getTime();
-      const end = new Date(p.interval.endTime).getTime();
+      const start = new Date(p.sleep!.interval.startTime).getTime();
+      const end = new Date(p.sleep!.interval.endTime).getTime();
       return {
         user_id: userId,
-        started_at: p.interval.startTime,
-        ended_at: p.interval.endTime,
+        started_at: p.sleep!.interval.startTime,
+        ended_at: p.sleep!.interval.endTime,
         duration_minutes: Math.round((end - start) / 60_000),
         source: 'google_health',
       };
@@ -334,8 +336,11 @@ async function syncGoogleHealth(userId: string, accessToken: string) {
 }
 
 interface HealthDataPoint {
-  interval?: { startTime: string; endTime: string };
-  exerciseType?: string;
+  exercise?: {
+    interval: { startTime: string; endTime: string };
+    exerciseType?: string;
+  };
+  sleep?: { interval: { startTime: string; endTime: string } };
 }
 
 async function listHealthDataPoints(
@@ -347,11 +352,16 @@ async function listHealthDataPoints(
   const points: HealthDataPoint[] = [];
   let pageToken: string | undefined;
 
+  // Each data type only supports filtering on specific fields — exercise
+  // only accepts civil_start_time (date, not a full timestamp), sleep only
+  // accepts interval.end_time (not start_time).
+  const filter =
+    dataType === 'exercise'
+      ? `exercise.interval.civil_start_time>="${startTimeIso.slice(0, 10)}" AND exercise.interval.civil_start_time<"${endTimeIso.slice(0, 10)}"`
+      : `sleep.interval.end_time>="${startTimeIso}" AND sleep.interval.end_time<"${endTimeIso}"`;
+
   do {
-    const params = new URLSearchParams({
-      pageSize: '25',
-      filter: `${dataType}.interval.start_time>="${startTimeIso}" AND ${dataType}.interval.end_time<"${endTimeIso}"`,
-    });
+    const params = new URLSearchParams({ pageSize: '25', filter });
     if (pageToken) params.set('pageToken', pageToken);
 
     const res = await fetch(
