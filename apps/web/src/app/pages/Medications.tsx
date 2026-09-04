@@ -201,9 +201,10 @@ export function Medications() {
               >
                 <div>
                   <p className="font-medium text-neutral-900">{med.name}</p>
-                  {med.dosage && (
-                    <p className="text-xs text-neutral-400">{med.dosage}</p>
-                  )}
+                  <p className="text-xs text-neutral-400">
+                    {med.dosage && `${med.dosage} · `}
+                    {med.schedule?.[0]?.time ?? '—'}
+                  </p>
                 </div>
                 <div className="flex items-center gap-3">
                   <button
