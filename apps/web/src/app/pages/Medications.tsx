@@ -250,7 +250,9 @@ export function Medications() {
                 {showDayHeader && (
                   <p
                     className={`text-xs font-semibold uppercase tracking-wide text-neutral-400 ${
-                      i === 0 ? 'pb-1' : 'pb-1 pt-3'
+                      i === 0
+                        ? 'pb-1'
+                        : 'mt-2 border-t border-neutral-100 pb-1 pt-3'
                     }`}
                   >
                     {new Date(log.scheduled_for).toLocaleDateString(undefined, {
