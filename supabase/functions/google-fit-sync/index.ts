@@ -1,9 +1,14 @@
-// Supabase Edge Function: handles the Google Fit OAuth callback and the
-// scheduled sync of steps/workouts/sleep into Pulsr's tables.
+// Supabase Edge Function: handles OAuth callbacks and scheduled sync for
+// two SEPARATE Google connections — the legacy Fitness API (steps/calories,
+// provider 'google_fit') and the new Google Health API (workouts/sleep,
+// provider 'google_health'). These can't share one OAuth grant: the Health
+// API rejects any access token that also carries a legacy Fitness scope
+// ("disallowed_scopes" error), so each needs its own consent flow and its
+// own refresh token.
 //
 // Routes (path is relative to the function's base URL):
-//   GET  /google-fit-sync/callback?code=...&state=<user_id>  -> OAuth token exchange
-//   POST /google-fit-sync/sync                                -> refresh + pull latest data
+//   GET  /google-fit-sync/callback?code=...&state=<base64 JSON>  -> OAuth token exchange
+//   POST /google-fit-sync/sync                                    -> refresh + pull latest data
 //     body: { user_id: string }  (omit to sync every connected user, used by the cron trigger)
 //
 // Required Edge Function secrets (set via `supabase secrets set`):
@@ -21,6 +26,8 @@ const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
 const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+
+type Provider = 'google_fit' | 'google_health';
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -60,16 +67,20 @@ async function handleOAuthCallback(url: URL): Promise<Response> {
 
   let userId: string;
   let returnTo: string;
+  let provider: Provider;
   try {
     const decoded = JSON.parse(atob(stateRaw)) as {
       userId: string;
       returnTo: string;
+      provider: Provider;
     };
     userId = decoded.userId;
     returnTo = decoded.returnTo;
+    provider = decoded.provider;
     if (
       !userId ||
-      !ALLOWED_RETURN_ORIGINS.some((origin) => returnTo.startsWith(origin))
+      !ALLOWED_RETURN_ORIGINS.some((origin) => returnTo.startsWith(origin)) ||
+      (provider !== 'google_fit' && provider !== 'google_health')
     ) {
       throw new Error('invalid state contents');
     }
@@ -105,13 +116,10 @@ async function handleOAuthCallback(url: URL): Promise<Response> {
     );
   }
 
-  const secretName = `google_fit_refresh_token_${userId}`;
+  const secretName = `${provider}_refresh_token_${userId}`;
   const { data: secretId, error: vaultError } = await admin.rpc(
     'vault_upsert_secret',
-    {
-      p_name: secretName,
-      p_secret: tokens.refresh_token,
-    },
+    { p_name: secretName, p_secret: tokens.refresh_token },
   );
   if (vaultError) throw vaultError;
 
@@ -120,7 +128,7 @@ async function handleOAuthCallback(url: URL): Promise<Response> {
     .upsert(
       {
         user_id: userId,
-        provider: 'google_fit',
+        provider,
         refresh_token_secret_id: secretId,
         last_synced_at: null,
       },
@@ -130,37 +138,65 @@ async function handleOAuthCallback(url: URL): Promise<Response> {
 
   return new Response(null, {
     status: 302,
-    headers: { Location: `${returnTo}?connected=google_fit` },
+    headers: { Location: `${returnTo}?connected=${provider}` },
   });
 }
 
 async function handleSync(userId?: string): Promise<Response> {
-  let query = admin
-    .from('wearable_connections')
-    .select('*')
-    .eq('provider', 'google_fit');
+  let query = admin.from('wearable_connections').select('*');
   if (userId) query = query.eq('user_id', userId);
   const { data: connections, error } = await query;
   if (error) throw error;
 
   const results = [];
   for (const connection of connections ?? []) {
-    results.push(await syncConnection(connection));
+    const refreshToken = await readRefreshToken(
+      connection.refresh_token_secret_id,
+    );
+    const accessToken = await refreshAccessToken(refreshToken);
+    if (!accessToken.ok) {
+      results.push({
+        user_id: connection.user_id,
+        provider: connection.provider,
+        ok: false,
+        error: accessToken.error,
+      });
+      continue;
+    }
+
+    const result =
+      connection.provider === 'google_fit'
+        ? await syncLegacyFitness(connection.user_id, accessToken.token)
+        : await syncGoogleHealth(connection.user_id, accessToken.token);
+
+    await admin
+      .from('wearable_connections')
+      .update({ last_synced_at: new Date().toISOString() })
+      .eq('user_id', connection.user_id)
+      .eq('provider', connection.provider);
+
+    results.push({
+      user_id: connection.user_id,
+      provider: connection.provider,
+      ok: true,
+      ...result,
+    });
   }
   return json({ synced: results.length, results });
 }
 
-async function syncConnection(connection: {
-  user_id: string;
-  refresh_token_secret_id: string;
-}) {
-  const { data: refreshToken, error: secretError } = await admin.rpc(
-    'vault_read_secret',
-    { p_id: connection.refresh_token_secret_id },
-  );
-  if (secretError) throw secretError;
+async function readRefreshToken(secretId: string): Promise<string> {
+  const { data, error } = await admin.rpc('vault_read_secret', {
+    p_id: secretId,
+  });
+  if (error) throw error;
+  return data as string;
+}
 
-  const refreshRes = await fetch('https://oauth2.googleapis.com/token', {
+async function refreshAccessToken(
+  refreshToken: string,
+): Promise<{ ok: true; token: string } | { ok: false; error: string }> {
+  const res = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({
@@ -170,17 +206,12 @@ async function syncConnection(connection: {
       grant_type: 'refresh_token',
     }),
   });
-  if (!refreshRes.ok) {
-    return {
-      user_id: connection.user_id,
-      ok: false,
-      error: await refreshRes.text(),
-    };
-  }
-  const { access_token } = (await refreshRes.json()) as {
-    access_token: string;
-  };
+  if (!res.ok) return { ok: false, error: await res.text() };
+  const { access_token } = (await res.json()) as { access_token: string };
+  return { ok: true, token: access_token };
+}
 
+async function syncLegacyFitness(userId: string, accessToken: string) {
   const now = Date.now();
   const startTimeMillis = now - 7 * 24 * 60 * 60 * 1000; // last 7 days
   const aggregateRes = await fetch(
@@ -188,7 +219,7 @@ async function syncConnection(connection: {
     {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${access_token}`,
+        Authorization: `Bearer ${accessToken}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -204,11 +235,7 @@ async function syncConnection(connection: {
     },
   );
   if (!aggregateRes.ok) {
-    return {
-      user_id: connection.user_id,
-      ok: false,
-      error: await aggregateRes.text(),
-    };
+    return { error: await aggregateRes.text() };
   }
   const aggregate = await aggregateRes.json();
 
@@ -223,7 +250,7 @@ async function syncConnection(connection: {
         0,
       ) ?? 0;
     return {
-      user_id: connection.user_id,
+      user_id: userId,
       date,
       steps: Math.round(sum(0)),
       active_minutes: Math.round(sum(1)),
@@ -239,78 +266,34 @@ async function syncConnection(connection: {
     if (upsertError) throw upsertError;
   }
 
-  const { workouts, sleepSessions } = await fetchHealthApiSessions(
-    access_token,
-    new Date(startTimeMillis).toISOString(),
-    new Date(now).toISOString(),
-  );
-
-  if (workouts.length > 0) {
-    const { error: workoutsError } = await admin.from('workouts').upsert(
-      workouts.map((w) => ({ ...w, user_id: connection.user_id })),
-      { onConflict: 'user_id,started_at,source' },
-    );
-    if (workoutsError) throw workoutsError;
-  }
-
-  if (sleepSessions.length > 0) {
-    const { error: sleepError } = await admin.from('sleep_sessions').upsert(
-      sleepSessions.map((s) => ({ ...s, user_id: connection.user_id })),
-      { onConflict: 'user_id,started_at,source' },
-    );
-    if (sleepError) throw sleepError;
-  }
-
-  await admin
-    .from('wearable_connections')
-    .update({ last_synced_at: new Date().toISOString() })
-    .eq('user_id', connection.user_id)
-    .eq('provider', 'google_fit');
-
-  return {
-    user_id: connection.user_id,
-    ok: true,
-    days_synced: rows.length,
-    workouts_synced: workouts.length,
-    sleep_sessions_synced: sleepSessions.length,
-  };
+  return { days_synced: rows.length };
 }
 
-// Google Fit's legacy Sessions API (fitness/v1/users/me/sessions) stopped
-// returning any session-level data for accounts already migrated to the
-// new Google Health platform, even though it hasn't been formally shut
-// down yet (sunset scheduled end of 2026, sign-ups closed since 2024). The
-// Google Health API — the Fitness API's actual replacement — is what now
-// carries workouts ("exercise") and sleep for these accounts.
-//
-// Docs: https://developers.google.com/health
+// The Google Health API is the Fitness API's replacement (rollout started
+// May 2026, legacy API sunsetting end of 2026). Docs: https://developers.google.com/health
+async function syncGoogleHealth(userId: string, accessToken: string) {
+  const now = new Date();
+  const start = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
 
-async function fetchHealthApiSessions(
-  accessToken: string,
-  startTimeIso: string,
-  endTimeIso: string,
-): Promise<{
-  workouts: {
-    started_at: string;
-    ended_at: string;
-    activity_type: string;
-    source: string;
-  }[];
-  sleepSessions: {
-    started_at: string;
-    ended_at: string;
-    duration_minutes: number;
-    source: string;
-  }[];
-}> {
   const [exercisePoints, sleepPoints] = await Promise.all([
-    listHealthDataPoints(accessToken, 'exercise', startTimeIso, endTimeIso),
-    listHealthDataPoints(accessToken, 'sleep', startTimeIso, endTimeIso),
+    listHealthDataPoints(
+      accessToken,
+      'exercise',
+      start.toISOString(),
+      now.toISOString(),
+    ),
+    listHealthDataPoints(
+      accessToken,
+      'sleep',
+      start.toISOString(),
+      now.toISOString(),
+    ),
   ]);
 
   const workouts = exercisePoints
     .filter((p) => p.interval?.startTime && p.interval?.endTime)
     .map((p) => ({
+      user_id: userId,
       started_at: p.interval.startTime,
       ended_at: p.interval.endTime,
       activity_type: (p.exerciseType ?? 'unknown').toLowerCase(),
@@ -323,6 +306,7 @@ async function fetchHealthApiSessions(
       const start = new Date(p.interval.startTime).getTime();
       const end = new Date(p.interval.endTime).getTime();
       return {
+        user_id: userId,
         started_at: p.interval.startTime,
         ended_at: p.interval.endTime,
         duration_minutes: Math.round((end - start) / 60_000),
@@ -330,7 +314,23 @@ async function fetchHealthApiSessions(
       };
     });
 
-  return { workouts, sleepSessions };
+  if (workouts.length > 0) {
+    const { error } = await admin
+      .from('workouts')
+      .upsert(workouts, { onConflict: 'user_id,started_at,source' });
+    if (error) throw error;
+  }
+  if (sleepSessions.length > 0) {
+    const { error } = await admin
+      .from('sleep_sessions')
+      .upsert(sleepSessions, { onConflict: 'user_id,started_at,source' });
+    if (error) throw error;
+  }
+
+  return {
+    workouts_synced: workouts.length,
+    sleep_sessions_synced: sleepSessions.length,
+  };
 }
 
 interface HealthDataPoint {

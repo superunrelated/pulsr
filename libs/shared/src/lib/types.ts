@@ -9,7 +9,7 @@ export interface Profile {
 export interface WearableConnection {
   id: string;
   user_id: string;
-  provider: 'google_fit';
+  provider: 'google_fit' | 'google_health';
   last_synced_at: string | null;
   created_at: string;
 }
