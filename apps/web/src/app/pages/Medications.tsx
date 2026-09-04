@@ -29,6 +29,10 @@ export function Medications() {
   const [logDate, setLogDate] = useState(getRecentDateOptions()[0].date);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editStatus, setEditStatus] = useState<MedicationLogStatus>('taken');
+  const [editingMedId, setEditingMedId] = useState<string | null>(null);
+  const [editMedName, setEditMedName] = useState('');
+  const [editMedDosage, setEditMedDosage] = useState('');
+  const [editMedTime, setEditMedTime] = useState('08:00');
 
   async function refresh() {
     const [medsRes, logsRes] = await Promise.all([
@@ -76,6 +80,27 @@ export function Medications() {
       taken_at: takenAt,
       status: 'taken',
     });
+    refresh();
+  }
+
+  function startEditMed(med: Medication) {
+    setEditingMedId(med.id);
+    setEditMedName(med.name);
+    setEditMedDosage(med.dosage ?? '');
+    setEditMedTime(med.schedule?.[0]?.time ?? '08:00');
+  }
+
+  async function saveEditMed(id: string) {
+    if (!editMedName) return;
+    await supabase
+      .from('medications')
+      .update({
+        name: editMedName,
+        dosage: editMedDosage || null,
+        schedule: [{ time: editMedTime }],
+      })
+      .eq('id', id);
+    setEditingMedId(null);
     refresh();
   }
 
@@ -139,25 +164,65 @@ export function Medications() {
           <DatePicker value={logDate} onChange={setLogDate} />
         </div>
         <ul className="divide-y divide-neutral-100">
-          {medications.map((med) => (
-            <li
-              key={med.id}
-              className="flex items-center justify-between py-2 text-sm"
-            >
-              <div>
-                <p className="font-medium text-neutral-900">{med.name}</p>
-                {med.dosage && (
-                  <p className="text-xs text-neutral-400">{med.dosage}</p>
-                )}
-              </div>
-              <button
-                onClick={() => logTaken(med)}
-                className="rounded bg-neutral-100 px-3 py-1 text-xs font-medium text-neutral-700"
+          {medications.map((med) =>
+            editingMedId === med.id ? (
+              <li key={med.id} className="space-y-2 py-2 text-sm">
+                <input
+                  value={editMedName}
+                  onChange={(e) => setEditMedName(e.target.value)}
+                  className="w-full rounded border border-neutral-300 px-2 py-1 text-sm"
+                />
+                <div className="flex items-center gap-2">
+                  <input
+                    placeholder="Dosage"
+                    value={editMedDosage}
+                    onChange={(e) => setEditMedDosage(e.target.value)}
+                    className="flex-1 rounded border border-neutral-300 px-2 py-1 text-sm"
+                  />
+                  <input
+                    type="time"
+                    value={editMedTime}
+                    onChange={(e) => setEditMedTime(e.target.value)}
+                    className="rounded border border-neutral-300 px-2 py-1 text-sm"
+                  />
+                  <button
+                    onClick={() => saveEditMed(med.id)}
+                    aria-label="Save"
+                    className="text-neutral-400 hover:text-emerald-600"
+                  >
+                    <RiCheckLine size={16} />
+                  </button>
+                </div>
+              </li>
+            ) : (
+              <li
+                key={med.id}
+                className="flex items-center justify-between py-2 text-sm"
               >
-                Log taken
-              </button>
-            </li>
-          ))}
+                <div>
+                  <p className="font-medium text-neutral-900">{med.name}</p>
+                  {med.dosage && (
+                    <p className="text-xs text-neutral-400">{med.dosage}</p>
+                  )}
+                </div>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => logTaken(med)}
+                    className="rounded bg-neutral-100 px-3 py-1 text-xs font-medium text-neutral-700"
+                  >
+                    Log taken
+                  </button>
+                  <button
+                    onClick={() => startEditMed(med)}
+                    aria-label="Edit medication"
+                    className="text-neutral-400 hover:text-neutral-700"
+                  >
+                    <RiPencilLine size={16} />
+                  </button>
+                </div>
+              </li>
+            ),
+          )}
           {medications.length === 0 && (
             <p className="py-2 text-sm text-neutral-400">
               No medications added yet.

@@ -56,6 +56,10 @@ export function Dashboard() {
       .from('daily_activity')
       .select('*')
       .eq('date', today)
+      // Two sources can both have a row for the same day (google_fit
+      // legacy + google_health) — prefer google_health (the working one).
+      .order('source', { ascending: false })
+      .limit(1)
       .maybeSingle()
       .then(({ data }) => {
         setActivity(data);

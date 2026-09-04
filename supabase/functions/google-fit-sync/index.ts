@@ -329,10 +329,79 @@ async function syncGoogleHealth(userId: string, accessToken: string) {
     if (error) throw error;
   }
 
+  const dailySteps = await fetchDailySteps(accessToken, start, now);
+  const activityRows = dailySteps.map((d) => ({
+    user_id: userId,
+    date: d.date,
+    steps: d.steps,
+    source: 'google_health',
+  }));
+  if (activityRows.length > 0) {
+    const { error } = await admin
+      .from('daily_activity')
+      .upsert(activityRows, { onConflict: 'user_id,date,source' });
+    if (error) throw error;
+  }
+
   return {
     workouts_synced: workouts.length,
     sleep_sessions_synced: sleepSessions.length,
+    days_synced: activityRows.length,
   };
+}
+
+function civilDate(d: Date): {
+  date: { year: number; month: number; day: number };
+} {
+  return {
+    date: {
+      year: d.getUTCFullYear(),
+      month: d.getUTCMonth() + 1,
+      day: d.getUTCDate(),
+    },
+  };
+}
+
+async function fetchDailySteps(
+  accessToken: string,
+  start: Date,
+  end: Date,
+): Promise<{ date: string; steps: number }[]> {
+  const res = await fetch(
+    'https://health.googleapis.com/v4/users/me/dataTypes/steps/dataPoints:dailyRollUp',
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        range: {
+          start: civilDate(start),
+          end: civilDate(new Date(end.getTime() + 24 * 60 * 60 * 1000)),
+        },
+        windowSizeDays: 1,
+      }),
+    },
+  );
+  if (!res.ok) {
+    console.error('steps dailyRollUp failed', res.status, await res.text());
+    return [];
+  }
+  const body = (await res.json()) as {
+    rollupDataPoints?: {
+      civilStartTime:
+        | { year: number; month: number; day: number }
+        | { date: { year: number; month: number; day: number } };
+      steps?: { countSum?: string | number };
+    }[];
+  };
+  return (body.rollupDataPoints ?? []).map((p) => {
+    const civil =
+      'date' in p.civilStartTime ? p.civilStartTime.date : p.civilStartTime;
+    const date = `${civil.year}-${String(civil.month).padStart(2, '0')}-${String(civil.day).padStart(2, '0')}`;
+    return { date, steps: Math.round(Number(p.steps?.countSum ?? 0)) };
+  });
 }
 
 interface HealthDataPoint {
