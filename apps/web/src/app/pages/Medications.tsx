@@ -233,7 +233,7 @@ export function Medications() {
       </Card>
 
       <Card title="Recent adherence log">
-        <ul className="divide-y divide-neutral-100">
+        <ul>
           {logs.map((log, i) => {
             const dayKey = new Date(log.scheduled_for).toLocaleDateString(
               'en-CA',
