@@ -234,69 +234,99 @@ export function Medications() {
 
       <Card title="Recent adherence log">
         <ul className="divide-y divide-neutral-100">
-          {logs.map((log) => (
-            <li key={log.id} className="py-2 text-sm">
-              {editingId === log.id ? (
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-neutral-900">
-                    {log.medications?.name ?? 'Unknown'}
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <select
-                      value={editStatus}
-                      onChange={(e) =>
-                        setEditStatus(e.target.value as MedicationLogStatus)
-                      }
-                      className="rounded border border-neutral-300 px-2 py-1 text-xs"
-                    >
-                      {STATUS_OPTIONS.map((s) => (
-                        <option key={s} value={s}>
-                          {s}
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      onClick={() => saveEdit(log.id)}
-                      aria-label="Save"
-                      className="text-neutral-400 hover:text-emerald-600"
-                    >
-                      <RiCheckLine size={16} />
-                    </button>
-                  </div>
+          {logs.map((log, i) => {
+            const dayKey = new Date(log.scheduled_for).toLocaleDateString(
+              'en-CA',
+            );
+            const prevDayKey =
+              i > 0
+                ? new Date(logs[i - 1].scheduled_for).toLocaleDateString(
+                    'en-CA',
+                  )
+                : null;
+            const showDayHeader = dayKey !== prevDayKey;
+            return (
+              <li key={log.id}>
+                {showDayHeader && (
+                  <p
+                    className={`text-xs font-semibold uppercase tracking-wide text-neutral-400 ${
+                      i === 0 ? 'pb-1' : 'pb-1 pt-3'
+                    }`}
+                  >
+                    {new Date(log.scheduled_for).toLocaleDateString(undefined, {
+                      weekday: 'short',
+                      month: 'short',
+                      day: 'numeric',
+                    })}
+                  </p>
+                )}
+                <div className="py-2 text-sm">
+                  {editingId === log.id ? (
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-neutral-900">
+                        {log.medications?.name ?? 'Unknown'}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <select
+                          value={editStatus}
+                          onChange={(e) =>
+                            setEditStatus(e.target.value as MedicationLogStatus)
+                          }
+                          className="rounded border border-neutral-300 px-2 py-1 text-xs"
+                        >
+                          {STATUS_OPTIONS.map((s) => (
+                            <option key={s} value={s}>
+                              {s}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          onClick={() => saveEdit(log.id)}
+                          aria-label="Save"
+                          className="text-neutral-400 hover:text-emerald-600"
+                        >
+                          <RiCheckLine size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium text-neutral-900">
+                          {log.medications?.name ?? 'Unknown'}
+                        </p>
+                        <p className="text-xs text-neutral-400">
+                          {new Date(log.scheduled_for).toLocaleTimeString([], {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="font-medium capitalize text-neutral-900">
+                          {log.status}
+                        </span>
+                        <button
+                          onClick={() => startEdit(log)}
+                          aria-label="Edit entry"
+                          className="text-neutral-400 hover:text-neutral-700"
+                        >
+                          <RiPencilLine size={16} />
+                        </button>
+                        <button
+                          onClick={() => removeLog(log.id)}
+                          aria-label="Remove entry"
+                          className="text-neutral-400 hover:text-red-500"
+                        >
+                          <RiCloseLine size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
-              ) : (
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium text-neutral-900">
-                      {log.medications?.name ?? 'Unknown'}
-                    </p>
-                    <p className="text-xs text-neutral-400">
-                      {new Date(log.scheduled_for).toLocaleString()}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <span className="font-medium capitalize text-neutral-900">
-                      {log.status}
-                    </span>
-                    <button
-                      onClick={() => startEdit(log)}
-                      aria-label="Edit entry"
-                      className="text-neutral-400 hover:text-neutral-700"
-                    >
-                      <RiPencilLine size={16} />
-                    </button>
-                    <button
-                      onClick={() => removeLog(log.id)}
-                      aria-label="Remove entry"
-                      className="text-neutral-400 hover:text-red-500"
-                    >
-                      <RiCloseLine size={16} />
-                    </button>
-                  </div>
-                </div>
-              )}
-            </li>
-          ))}
+              </li>
+            );
+          })}
           {logs.length === 0 && (
             <p className="py-2 text-sm text-neutral-400">No log entries yet.</p>
           )}
